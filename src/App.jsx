@@ -13,7 +13,7 @@ import {
 
 // --- CONFIGURATION ---
 // ⚠️ GANTI DENGAN URL DEPLOYMENT GOOGLE SCRIPT TERBARU ANDA
-const API_URL = "https://script.google.com/macros/s/AKfycbx73F0aW-hJgQyq281K_5M5-X1Q0V58J1L7M9P5/exec"; 
+const API_URL = "https://script.google.com/macros/s/AKfycbxLDuRPPj1EuijltnonqJe9mBE6Jz9lTaAn_nZrr_7C5h5An0aWz32RVaamnRVsmokC/exec"; 
 const CACHE_KEY_PREFIX = "masjid_data_"; 
 
 // --- ERROR BOUNDARY ---

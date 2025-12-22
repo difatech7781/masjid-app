@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
-// ⚠️ PASTIKAN URL INI ADALAH DEPLOYMENT "WEB APP" (EXEC) BUKAN DEV
+// ⚠️ GANTI DENGAN URL DEPLOYMENT GOOGLE SCRIPT BARU (Code.gs v25.0)
 const API_URL = "https://script.google.com/macros/s/AKfycbxLDuRPPj1EuijltnonqJe9mBE6Jz9lTaAn_nZrr_7C5h5An0aWz32RVaamnRVsmokC/exec"; 
 const CACHE_KEY_PREFIX = "masjid_data_"; 
 
@@ -52,11 +52,18 @@ const optimizeImage = (url, width = 800) => {
   return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=${width}&q=80&output=webp`;
 };
 
+// FIX HIJRI DATE (Mobile Friendly Fallback)
 const getHijriDate = () => {
   try {
     const date = new Intl.DateTimeFormat('id-ID-u-ca-islamic', { day: 'numeric', month: 'long', year: 'numeric' }).format(Date.now());
+    // Cek jika hasil konversi valid (mengandung angka dan bukan default masehi)
+    if (!date.match(/\d/) || date.includes("Jan") || date.includes("Des")) {
+       return "Kalender Hijriyah"; // Fallback text jika HP tidak support
+    }
     return date.replace('Tahun', '').replace(/ H/g, '').trim() + " H";
-  } catch (e) { return ""; }
+  } catch (e) {
+    return "Hijriyah Mode"; // Fail safe
+  }
 };
 
 const getMasehiDate = () => {
@@ -78,7 +85,6 @@ const calculateTimeStatus = (jadwal, config) => {
     { name: 'Maghrib', val: parse(jadwal.maghrib) }, { name: 'Isya', val: parse(jadwal.isya) }
   ];
   
-  // Logic Next Prayer (Anti-Minus)
   let next = times.find(t => t.val > currentMinutes);
   let isTomorrow = false;
   if (!next) { next = times[1]; isTomorrow = true; } // times[1] is Subuh
@@ -117,18 +123,19 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
   );
 };
 
+// FIX MODAL: Add z-index higher than footer (z-50) and extra padding bottom for mobile
 const ModalInput = ({ isOpen, onClose, title, onSubmit, children }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white w-full sm:w-full max-w-sm sm:rounded-2xl rounded-t-2xl p-6 shadow-2xl transform transition-all">
-        <div className="flex justify-between items-center mb-5 border-b border-gray-100 pb-3">
+    <div className="fixed inset-0 bg-black/60 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white w-full sm:w-full max-w-sm sm:rounded-2xl rounded-t-2xl p-6 shadow-2xl transform transition-all max-h-[85vh] overflow-y-auto pb-20 sm:pb-6">
+        <div className="flex justify-between items-center mb-5 border-b border-gray-100 pb-3 sticky top-0 bg-white z-10">
           <h3 className="font-bold text-lg text-gray-800">{title}</h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full transition-colors"><X size={24} className="text-gray-400 hover:text-gray-600"/></button>
         </div>
         <form onSubmit={onSubmit} className="space-y-4">
           {children}
-          <button type="submit" className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold mt-2 shadow-lg hover:bg-emerald-700 active:scale-95 transition-all">Simpan Data</button>
+          <button type="submit" className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold mt-4 shadow-lg hover:bg-emerald-700 active:scale-95 transition-all">Simpan Data</button>
         </form>
       </div>
     </div>
@@ -136,14 +143,8 @@ const ModalInput = ({ isOpen, onClose, title, onSubmit, children }) => {
 };
 
 const ActivitySlider = ({ slides = [] }) => {
-  // Logic to handle both string URLs and object {url, caption}
-  const validSlides = Array.isArray(slides) ? slides.filter(item => {
-    const url = typeof item === 'string' ? item : item?.url;
-    return url && url.length > 5;
-  }) : [];
-
+  const validSlides = Array.isArray(slides) ? slides.filter(item => (typeof item === 'string' ? item : item?.url)) : [];
   const displaySlides = validSlides.length > 0 ? validSlides : [{ url: "https://images.unsplash.com/photo-1564769629178-580d6be2f6b9?q=80&w=1000", caption: "Masjid Digital" }];
-
   return (
     <div className="mb-4">
        <h3 className="font-bold text-gray-800 mb-3 px-4 flex items-center gap-2"><ImageIcon size={16} className="text-emerald-600"/> Galeri Aktivitas</h3>
@@ -252,7 +253,6 @@ const ViewHome = ({ data, setView, timeStatus, currentUser }) => {
       {data?.config?.siklus === 'IDUL_FITRI' && <Card onClick={() => setView('idul_fitri')} className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white border-none shadow-lg transform hover:scale-[1.02] transition-transform"><div className="flex justify-between items-center"><div><h3 className="font-bold flex items-center gap-2"><Gift size={18}/> Gema Idul Fitri</h3><p className="text-xs text-emerald-100 mt-1">Info Sholat Ied & Zakat</p></div><ChevronRight className="text-emerald-200" size={20}/></div></Card>}
       {data?.config?.siklus === 'QURBAN' && hasAccess('qurban') && <Card onClick={() => setView('qurban')} className="bg-red-50 border-red-100"><div className="flex justify-between items-center"><div className="flex items-center gap-3"><div className="bg-red-100 p-2 rounded-full text-red-600"><Beef size={20}/></div><div><h3 className="font-bold text-red-900">Info Qurban</h3><p className="text-xs text-red-700">Cek data shohibul qurban</p></div></div><ChevronRight className="text-red-400" size={20}/></div></Card>}
 
-      {/* PEMBANGUNAN CARD */}
       {activePembangunan && hasAccess('pembangunan') && (
         <Card onClick={() => setView('pembangunan')} className="border-l-4 border-l-orange-500 overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
           <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-gray-800 flex items-center gap-2"><Hammer size={16} className="text-orange-500" />Pembangunan/Renovasi</h3><span className="text-xs text-gray-500">{activePembangunan.lastupdate}</span></div>
@@ -263,7 +263,6 @@ const ViewHome = ({ data, setView, timeStatus, currentUser }) => {
         </Card>
       )}
 
-      {/* KEUANGAN */}
       {hasAccess('keuangan') && (
         <div>
           <div className="flex justify-between items-center mb-2 px-1"><h3 className="font-bold text-gray-800">Keuangan Umat</h3></div>
@@ -278,7 +277,6 @@ const ViewHome = ({ data, setView, timeStatus, currentUser }) => {
         </div>
       )}
 
-      {/* GRID MENU */}
       <div className="pb-8">
         <h3 className="font-bold text-gray-800 mb-3 px-1">Layanan Digital</h3>
         <div className="grid grid-cols-4 gap-3">
@@ -296,26 +294,31 @@ const ViewPembangunan = ({ data, onBack }) => {
   const listPembangunan = data?.pembangunan?.list || [];
   const stats = data?.pembangunan?.stats || { total_masuk: 0, total_keluar: 0, saldo_akhir: 0 };
   const donors = data?.pembangunan?.donors || [];
+  
   const [donorPage, setDonorPage] = useState(1);
   const perPage = 5;
   const totalPages = Math.ceil(donors.length / perPage);
   const displayDonors = donors.slice((donorPage - 1) * perPage, donorPage * perPage);
+  
   const maxVal = Math.max(stats.total_masuk, stats.total_keluar, 1);
-  const wIn = maxVal > 0 ? (stats.total_masuk / maxVal) * 100 : 0;
-  const wOut = maxVal > 0 ? (stats.total_keluar / maxVal) * 100 : 0;
+  const wIn = (stats.total_masuk / maxVal) * 100;
+  const wOut = (stats.total_keluar / maxVal) * 100;
   const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
+  
   const [expandedIndex, setExpandedIndex] = useState(null);
   const toggleAccordion = (index) => setExpandedIndex(expandedIndex === index ? null : index);
 
   // Construction Slider
   const ConstructionSlider = ({ stages }) => {
     const [idx, setIdx] = useState(0);
-    const validStages = stages.filter(s => s.foto_url && s.foto_url.length > 5);
+    // Filter hanya yang ada URL fotonya
+    const validStages = stages.filter(s => (s.foto_url || s.fotourl) && (s.foto_url || s.fotourl).length > 5);
+    
     return (
       <div className="relative w-full h-56 bg-gray-100 rounded-xl overflow-hidden mb-6 group shadow-lg border border-gray-200">
         {validStages.length > 0 ? (
           <>
-            <img src={optimizeImage(validStages[idx].foto_url, 800)} className="w-full h-full object-cover transition-all duration-500" alt="Progress" />
+            <img src={optimizeImage(validStages[idx].foto_url || validStages[idx].fotourl, 800)} className="w-full h-full object-cover transition-all duration-500" alt="Progress" />
             <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 text-white">
               <div className="flex justify-between items-center mb-1">
                  <span className="font-bold text-sm bg-black/30 px-2 py-1 rounded backdrop-blur-sm border border-white/20">Tahap {validStages[idx].tahap}</span>
@@ -348,7 +351,7 @@ const ViewPembangunan = ({ data, onBack }) => {
         <p className="text-xs text-gray-500">Transparansi Dana & Progres Fisik</p>
       </div>
       
-      {/* TABS 3 */}
+      {/* TABS NAVIGATION */}
       <div className="flex p-1 bg-gray-200 rounded-xl mb-6 shadow-inner">
         <button onClick={() => setActiveTab('laporan')} className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all ${activeTab === 'laporan' ? 'bg-white shadow text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>Fisik</button>
         <button onClick={() => setActiveTab('keuangan')} className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all ${activeTab === 'keuangan' ? 'bg-white shadow text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>Keuangan</button>
@@ -361,6 +364,10 @@ const ViewPembangunan = ({ data, onBack }) => {
           <div className="space-y-3">
             {listPembangunan.map((item, idx) => {
               const isOpen = expandedIndex === idx;
+              // Handle key variations due to backend normalization
+              const fotoUrl = item.foto_url || item.fotourl;
+              const lastUpdate = item.lastupdate || item.tanggal || "-";
+              
               return (
                 <Card key={idx} className="p-0 overflow-hidden transition-all duration-300 border border-gray-100">
                    <div onClick={() => toggleAccordion(idx)} className={`p-4 flex justify-between items-center cursor-pointer ${isOpen ? 'bg-orange-50 border-b border-orange-100' : 'bg-white hover:bg-gray-50'}`}>
@@ -375,8 +382,8 @@ const ViewPembangunan = ({ data, onBack }) => {
                    </div>
                    <div className={`transition-all duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
                       <div className="p-4 bg-white">
-                         {item.foto_url && (<div className="mb-3 rounded-lg overflow-hidden border border-gray-100 shadow-sm"><img src={optimizeImage(item.foto_url, 800)} alt="Foto Proyek" className="w-full h-40 object-cover" /></div>)}
-                         <p className="text-xs text-gray-500 mb-2 flex items-center gap-1"><Clock size={10}/> Update Terakhir: {item.lastupdate}</p>
+                         {fotoUrl && (<div className="mb-3 rounded-lg overflow-hidden border border-gray-100 shadow-sm"><img src={optimizeImage(fotoUrl, 800)} alt="Foto Proyek" className="w-full h-40 object-cover" /></div>)}
+                         <p className="text-xs text-gray-500 mb-2 flex items-center gap-1"><Clock size={10}/> Update Terakhir: {lastUpdate}</p>
                          <div className="w-full bg-gray-200 rounded-full h-2 mb-1"><div className="bg-orange-500 h-2 rounded-full shadow-[0_0_10px_rgba(249,115,22,0.5)]" style={{ width: `${item.progress}%` }}></div></div>
                          <p className="text-right text-xs font-bold text-orange-600">{item.progress}% Selesai</p>
                       </div>
@@ -443,11 +450,11 @@ const ViewPembangunan = ({ data, onBack }) => {
   ); 
 };
 
-// --- RESTORED RAMADHAN VIEW ---
+// --- VIEW RAMADHAN (RESTORED) ---
 const ViewRamadhan = ({ data, onBack }) => {
-  // Logic untuk filter agenda ramadhan (buka puasa/tarawih)
+  // Logic Filter Agenda Ramadhan (Safe Key Access)
   const agendaRamadhan = data?.kegiatan?.filter(k => {
-    const judul = String(k.judul).toLowerCase();
+    const judul = String(k.judul || "").toLowerCase();
     return judul.includes('tarawih') || judul.includes('buka') || judul.includes('sahur') || judul.includes('ramadhan');
   }) || [];
   
@@ -477,15 +484,20 @@ const ViewRamadhan = ({ data, onBack }) => {
       <Card>
          <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><CalendarDays size={16} className="text-purple-600"/> Agenda Ramadhan</h3>
          <div className="space-y-3">
-           {agendaRamadhan.length > 0 ? agendaRamadhan.map((item, idx) => (
-             <div key={idx} className="border-b border-gray-100 pb-2 last:border-0 hover:bg-gray-50 p-2 rounded transition-colors">
-               <div className="flex justify-between">
-                 <p className="font-bold text-sm text-gray-800">{item.judul}</p>
-                 <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">{item.waktu ? item.waktu.split(' ')[0] : ''}</span>
+           {agendaRamadhan.length > 0 ? agendaRamadhan.map((item, idx) => {
+             // Handle Safe Access
+             const pic = item.ustadz || item.ustadzpic || "Panitia";
+             const tgl = item.waktu ? item.waktu.split(' ')[0] : '';
+             return (
+               <div key={idx} className="border-b border-gray-100 pb-2 last:border-0 hover:bg-gray-50 p-2 rounded transition-colors">
+                 <div className="flex justify-between">
+                   <p className="font-bold text-sm text-gray-800">{item.judul}</p>
+                   <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">{tgl}</span>
+                 </div>
+                 <p className="text-xs text-gray-500 mt-1 flex items-center gap-1"><UserCircle size={10}/> {pic}</p>
                </div>
-               <p className="text-xs text-gray-500 mt-1 flex items-center gap-1"><UserCircle size={10}/> {item.ustadz || item['ustadz/pic'] || "Panitia"}</p>
-             </div>
-           )) : (
+             );
+           }) : (
              <div className="text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200">
                 <p className="text-sm text-gray-400">Belum ada agenda khusus Ramadhan.</p>
                 <p className="text-xs text-gray-400 mt-1">Silakan cek menu 'Jadwal' untuk kegiatan rutin.</p>
@@ -538,15 +550,23 @@ const ViewQurban = ({ data, onBack }) => {
       <Card className="mb-6">
         <h3 className="font-bold text-gray-800 mb-4 text-sm uppercase tracking-wide">Daftar Shohibul Qurban</h3>
         <div className="space-y-4">
-          {data?.qurban?.hewan?.map((item, idx) => (
-            <div key={idx} className="flex justify-between items-start border-b border-gray-100 pb-3 last:border-0 hover:bg-gray-50 p-2 rounded transition-colors">
-              <div>
-                <p className="font-bold text-gray-800 text-sm">{item.namashohib || item.nama_shohib}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{item.jenishewan || item.jenis_hewan} • <span className="italic">{item.permintaandaging || item.permintaan_daging}</span></p>
+          {data?.qurban?.hewan?.map((item, idx) => {
+            // Handle key variations (Safe Access)
+            const nama = item.namashohib || item.nama_shohib || "Hamba Allah";
+            const hewan = item.jenishewan || item.jenis_hewan || "-";
+            const status = item.statusbayar || item.status_bayar || "BELUM";
+            const request = item.permintaandaging || item.permintaan_daging || "-";
+
+            return (
+              <div key={idx} className="flex justify-between items-start border-b border-gray-100 pb-3 last:border-0 hover:bg-gray-50 p-2 rounded transition-colors">
+                <div>
+                  <p className="font-bold text-gray-800 text-sm">{nama}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{hewan} • <span className="italic">{request}</span></p>
+                </div>
+                <Badge type={status === 'LUNAS' ? 'success' : 'warning'}>{status}</Badge>
               </div>
-              <Badge type={(item.statusbayar || item.status_bayar) === 'LUNAS' ? 'success' : 'warning'}>{item.statusbayar || item.status_bayar}</Badge>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </Card>
       
@@ -686,7 +706,6 @@ const ViewAdmin = ({ data, onBack, setView, onLogin, currentUser, masjidId, send
     e.preventDefault();
     if (!data?.users) { alert("Data user tidak ditemukan."); return; }
     
-    // Superadmin bypass (Opsional)
     if (username === "vendor" && password === "admin123") { 
         onLogin({ role: "SUPERADMIN", nama: "Vendor Pusat" }); 
         return; 
@@ -813,12 +832,10 @@ export default function App() {
   const queryParams = new URLSearchParams(window.location.search);
   let masjidId = queryParams.get('id');
 
-  // Logic: Simpan ID jika ada di URL, Ambil dari storage jika URL kosong
   if (masjidId) {
     localStorage.setItem('saved_masjid_id', masjidId);
   } else {
     masjidId = localStorage.getItem('saved_masjid_id');
-    // Silent URL Update (Tanpa reload)
     if (masjidId) {
       const newUrl = new URL(window.location);
       newUrl.searchParams.set('id', masjidId);
@@ -839,7 +856,6 @@ export default function App() {
       setLoading(true);
       if (!masjidId) { 
         setLoading(false); 
-        // Pesan Error jika ID benar-benar tidak ditemukan
         setError("Selamat Datang. Silakan gunakan link khusus masjid Anda (contoh: /?id=nama_masjid) untuk pertama kali."); 
         return; 
       }
@@ -848,9 +864,7 @@ export default function App() {
         const response = await fetch(`${API_URL}?id=${masjidId}&nocache=${Date.now()}`);
         const json = await response.json();
         
-        // Handle Error dari Backend (Misal: Blocked)
         if (json.status === 'error') {
-           // Clear local storage jika error fatal agar user tidak stuck
            localStorage.removeItem('saved_masjid_id');
            throw new Error(json.message);
         }
@@ -858,7 +872,6 @@ export default function App() {
         setData(json);
         localStorage.setItem(CACHE_KEY_PREFIX + masjidId, JSON.stringify(json));
       } catch (err) {
-        // Fallback ke Cache jika Offline/Error
         const cached = localStorage.getItem(CACHE_KEY_PREFIX + masjidId);
         if (cached) setData(JSON.parse(cached));
         else setError(err.message);
@@ -873,7 +886,6 @@ export default function App() {
     return () => clearInterval(tick);
   }, [data]);
 
-  // --- TAMPILAN ERROR YANG LEBIH BAIK (RESTORED) ---
   if (loading) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-emerald-600">
       <RefreshCw className="animate-spin mb-4" size={48}/>

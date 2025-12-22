@@ -12,8 +12,9 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
-// ⚠️ GANTI DENGAN URL DEPLOYMENT GOOGLE SCRIPT TERBARU ANDA
-const API_URL = "https://script.google.com/macros/s/AKfycbxLDuRPPj1EuijltnonqJe9mBE6Jz9lTaAn_nZrr_7C5h5An0aWz32RVaamnRVsmokC/exec"; 
+// ⚠️ PASTE URL DEPLOYMENT GOOGLE SCRIPT TERBARU (Pastikan Access: 'Anyone')
+const API_URL = "https://script.google.com/macros/s/AKfycbx73F0aW-hJgQyq281K_5M5-X1Q0V58J1L7M9P5/exec"; 
+const DEMO_SCRIPT_ID = "AKfycbx73F0aW-hJgQyq281K_5M5-X1Q0V58J1L7M9P5";
 const CACHE_KEY_PREFIX = "masjid_data_"; 
 
 // --- ERROR BOUNDARY ---
@@ -74,10 +75,13 @@ const calculateTimeStatus = (jadwal, config) => {
     { name: 'Maghrib', val: parse(jadwal.maghrib) }, { name: 'Isya', val: parse(jadwal.isya) }
   ];
   
-  // Logic Anti Minus: Cari waktu berikutnya. Jika habis, ambil Subuh besok.
+  const sholatWajibNames = ['Subuh', 'Dzuhur', 'Ashar', 'Maghrib', 'Isya'];
+  const isAdzanNow = times.some(t => sholatWajibNames.includes(t.name) && t.val === currentMinutes);
+  if (isAdzanNow) return { status: 'adzan', text: `ADZAN`, next: null };
+
   let next = times.find(t => t.val > currentMinutes);
   let isTomorrow = false;
-  if (!next) { next = times[1]; isTomorrow = true; } // times[1] is Subuh (times[0] is Imsak)
+  if (!next) { next = times[1]; isTomorrow = true; } 
 
   let diffMinutes = next.val - currentMinutes;
   if (isTomorrow) { diffMinutes = (24 * 60 - currentMinutes) + next.val; }
@@ -97,9 +101,9 @@ const Card = ({ children, className = "", onClick }) => (
   </div>
 );
 
-const Badge = ({ children, type = "info" }) => {
+const Badge = ({ children, type = "info", onClick }) => {
   const colors = { info: "bg-blue-100 text-blue-700", success: "bg-emerald-100 text-emerald-700", warning: "bg-amber-100 text-amber-700", danger: "bg-rose-100 text-rose-700", purple: "bg-purple-100 text-purple-700" };
-  return <span className={`px-2 py-1 rounded-md text-xs font-semibold ${colors[type] || colors.info}`}>{children}</span>;
+  return <span onClick={onClick} className={`px-2 py-1 rounded-md text-xs font-semibold ${colors[type] || colors.info} ${onClick ? 'cursor-pointer hover:opacity-80' : ''}`}>{children}</span>;
 };
 
 const Pagination = ({ currentPage, totalPages, onPageChange }) => {
@@ -164,7 +168,7 @@ const DashboardBendahara = ({ onAddTransaksi, onAddZiswaf }) => (
   <div className="space-y-3"><Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200 shadow-sm"><div className="flex items-center gap-3"><div className="bg-emerald-100 p-2 rounded-lg text-emerald-700"><Wallet size={24}/></div><div><h3 className="font-bold text-emerald-800">Panel Bendahara</h3><p className="text-xs text-emerald-600">Manajemen Kas & Ziswaf</p></div></div></Card><div className="grid grid-cols-2 gap-3"><button onClick={onAddTransaksi} className="bg-white border border-gray-200 p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-emerald-50 hover:border-emerald-200 transition-all shadow-sm"><div className="bg-emerald-100 p-2 rounded-full text-emerald-600"><Plus size={20}/></div><span className="text-xs font-bold text-gray-700">Catat Transaksi</span></button><button onClick={onAddZiswaf} className="bg-white border border-gray-200 p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-emerald-50 hover:border-emerald-200 transition-all shadow-sm"><div className="bg-emerald-100 p-2 rounded-full text-emerald-600"><Plus size={20}/></div><span className="text-xs font-bold text-gray-700">Input ZISWAF</span></button></div></div>
 );
 
-// --- MAIN VIEWS ---
+// --- VIEW COMPONENTS ---
 
 const Header = ({ profile, config, setView, timeStatus, isOffline, currentUser }) => {
   const [showHijri, setShowHijri] = useState(false);
@@ -237,6 +241,7 @@ const ViewHome = ({ data, setView, timeStatus, currentUser }) => {
 
       <ActivitySlider slides={data?.profile?.slide_kegiatan} />
 
+      {/* SIKLUS CARD */}
       {data?.config?.siklus === 'RAMADHAN' && <Card onClick={() => setView('ramadhan')} className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-none shadow-lg transform hover:scale-[1.02] transition-transform"><div className="flex justify-between items-center"><div><h3 className="font-bold flex items-center gap-2"><MoonStar size={18}/> Spesial Ramadhan</h3><p className="text-xs text-purple-100 mt-1">Cek Imsakiyah & Jadwal I'tikaf</p></div><ChevronRight className="text-purple-200" size={20}/></div></Card>}
       {data?.config?.siklus === 'IDUL_FITRI' && <Card onClick={() => setView('idul_fitri')} className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white border-none shadow-lg transform hover:scale-[1.02] transition-transform"><div className="flex justify-between items-center"><div><h3 className="font-bold flex items-center gap-2"><Gift size={18}/> Gema Idul Fitri</h3><p className="text-xs text-emerald-100 mt-1">Info Sholat Ied & Zakat</p></div><ChevronRight className="text-emerald-200" size={20}/></div></Card>}
       {data?.config?.siklus === 'QURBAN' && hasAccess('qurban') && <Card onClick={() => setView('qurban')} className="bg-red-50 border-red-100"><div className="flex justify-between items-center"><div className="flex items-center gap-3"><div className="bg-red-100 p-2 rounded-full text-red-600"><Beef size={20}/></div><div><h3 className="font-bold text-red-900">Info Qurban</h3><p className="text-xs text-red-700">Cek data shohibul qurban</p></div></div><ChevronRight className="text-red-400" size={20}/></div></Card>}
@@ -293,7 +298,6 @@ const ViewTPA = ({ data, onBack }) => {
       <button onClick={onBack} className="mb-4 flex text-sm text-gray-600 hover:text-emerald-600 transition-colors"><ArrowLeft size={16} className="mr-1"/> Kembali</button>
       <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2"><GraduationCap className="text-yellow-500"/> Data TPA/TPQ</h2>
       
-      {/* STATISTIK SANTRI */}
       <div className="grid grid-cols-3 gap-2 mb-6">
         <div className="bg-yellow-50 p-3 rounded-xl border border-yellow-200 text-center shadow-sm">
           <p className="text-[10px] text-yellow-700 uppercase font-bold tracking-wider">Total Santri</p>
@@ -309,7 +313,6 @@ const ViewTPA = ({ data, onBack }) => {
         </div>
       </div>
 
-      {/* GRAFIK SANTRI */}
       <div className="mb-6 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
         <h3 className="font-bold text-gray-800 mb-3 text-sm">Komposisi Santri</h3>
         <div className="flex gap-1 h-4 rounded-full overflow-hidden bg-gray-100">
@@ -322,7 +325,6 @@ const ViewTPA = ({ data, onBack }) => {
         </div>
       </div>
 
-      {/* LIST SANTRI */}
       <div className="mb-6">
         <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><List size={16} className="text-emerald-600"/> Daftar Santri Aktif</h3>
         <div className="space-y-2">
@@ -330,7 +332,7 @@ const ViewTPA = ({ data, onBack }) => {
             <Card key={idx} className="flex justify-between items-center py-3 px-4 hover:bg-gray-50 transition-colors border-gray-100">
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm ${item.jenis_kelamin === 'L' ? 'bg-blue-500' : 'bg-pink-500'}`}>
-                  {item.nama.charAt(0)}
+                  {item.nama ? item.nama.charAt(0) : '-'}
                 </div>
                 <div>
                   <p className="font-bold text-sm text-gray-800 leading-tight">{item.nama}</p>
@@ -537,6 +539,7 @@ const ViewPembangunan = ({ data, onBack }) => {
   const [expandedIndex, setExpandedIndex] = useState(null);
   const toggleAccordion = (index) => setExpandedIndex(expandedIndex === index ? null : index);
 
+  // Construction Slider
   const ConstructionSlider = ({ stages }) => {
     const [idx, setIdx] = useState(0);
     const validStages = stages.filter(s => s.foto_url && s.foto_url.length > 5);
@@ -1071,8 +1074,8 @@ export default function App() {
     return () => clearInterval(tick);
   }, [data]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-emerald-600"><RefreshCw className="animate-spin mb-2"/><p className="text-xs font-bold text-gray-500">Memuat Data...</p></div>;
-  if (error) return <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center"><Info className="text-red-500 mb-2" size={32}/><p className="text-gray-800 font-bold mb-2">{error}</p></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-emerald-600">Loading...</div>;
+  if (error) return <div className="min-h-screen flex items-center justify-center text-red-500">{error}</div>;
   if (!data) return null;
 
   return (
@@ -1094,12 +1097,13 @@ export default function App() {
           </main>
           
           <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 pb-safe pt-2 px-6 flex justify-between items-center z-50 max-w-md mx-auto">
-            <button onClick={() => setView('home')} className={`flex flex-col items-center gap-1 p-2 active:scale-95 transition-transform ${view === 'home' ? 'text-emerald-600' : 'text-gray-400'}`}><Home size={20}/><span className="text-[10px] font-medium">Beranda</span></button>
-            <button onClick={() => setView('donasi')} className={`flex flex-col items-center gap-1 p-2 active:scale-95 transition-transform ${view === 'donasi' ? 'text-emerald-600' : 'text-gray-400'}`}><Wallet size={20}/><span className="text-[10px] font-medium">Donasi</span></button>
-            <button onClick={() => setView('kegiatan')} className={`flex flex-col items-center gap-1 p-2 active:scale-95 transition-transform ${view === 'kegiatan' ? 'text-emerald-600' : 'text-gray-400'}`}><Calendar size={20}/><span className="text-[10px] font-medium">Jadwal</span></button>
-            <button onClick={() => setView('admin')} className={`flex flex-col items-center gap-1 p-2 active:scale-95 transition-transform ${view === 'admin' ? 'text-emerald-600' : 'text-gray-400'}`}>
+            <button onClick={() => setView('home')} className={`flex flex-col items-center gap-1 p-2 ${view === 'home' ? 'text-emerald-600' : 'text-gray-400'}`}><Home size={20}/><span className="text-[10px] font-medium">Beranda</span></button>
+            <button onClick={() => setView('donasi')} className={`flex flex-col items-center gap-1 p-2 ${view === 'donasi' ? 'text-emerald-600' : 'text-gray-400'}`}><Wallet size={20}/><span className="text-[10px] font-medium">Donasi</span></button>
+            <button onClick={() => setView('kegiatan')} className={`flex flex-col items-center gap-1 p-2 ${view === 'kegiatan' ? 'text-emerald-600' : 'text-gray-400'}`}><Calendar size={20}/><span className="text-[10px] font-medium">Jadwal</span></button>
+            
+            <button onClick={() => setView('admin')} className={`flex flex-col items-center gap-1 p-2 ${view === 'admin' ? 'text-emerald-600' : 'text-gray-400'}`}>
               {currentUser ? <Settings size={20}/> : <Lock size={20}/>}
-              <span className="text-[10px] font-medium">{currentUser ? 'Admin' : 'Login'}</span>
+              <span className="text-[10px] font-medium">{currentUser ? (currentUser.role === 'ADMIN' ? 'Admin' : 'Akun') : 'Login'}</span>
             </button>
           </div>
         </ErrorBoundary>

@@ -1038,8 +1038,25 @@ export default function App() {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [currentUser, setCurrentUser] = useState(null);
   
+  // --- SOLUSI PWA FIX START ---
   const queryParams = new URLSearchParams(window.location.search);
-  const masjidId = queryParams.get('id');
+  let masjidId = queryParams.get('id');
+
+  // 1. Jika ada ID di URL (buka pertama kali), Simpan ke Memory HP
+  if (masjidId) {
+    localStorage.setItem('saved_masjid_id', masjidId);
+  } 
+  // 2. Jika ID kosong (buka dari Icon PWA), Ambil dari Memory HP
+  else {
+    masjidId = localStorage.getItem('saved_masjid_id');
+    // Jika ketemu di memory, update URL browser secara diam-diam agar konsisten
+    if (masjidId) {
+      const newUrl = new URL(window.location);
+      newUrl.searchParams.set('id', masjidId);
+      window.history.replaceState(null, '', newUrl);
+    }
+  }
+  // --- SOLUSI PWA FIX END ---
 
   const sendData = async (action, payload) => {
     try {
@@ -1052,11 +1069,24 @@ export default function App() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      if (!masjidId) { setLoading(false); setError("ID Masjid tidak ditemukan."); return; }
+      // Validasi ID setelah cek memory
+      if (!masjidId) { 
+        setLoading(false); 
+        setError("Selamat Datang. Silakan gunakan link khusus masjid Anda (contoh: /?id=nama_masjid) untuk pertama kali, lalu Install Aplikasi."); 
+        return; 
+      }
+
       try {
         const response = await fetch(`${API_URL}?id=${masjidId}&nocache=${Date.now()}`);
         const json = await response.json();
-        if (json.status === 'error') throw new Error(json.message);
+        
+        // KILL SWITCH: Jika Backend bilang Error (Blocked/Not Found), HAPUS CACHE & MEMORY ID
+        if (json.status === 'error') {
+          localStorage.removeItem(CACHE_KEY_PREFIX + masjidId);
+          localStorage.removeItem('saved_masjid_id'); // Hapus ingatan ID agar user tidak terjebak
+          throw new Error("BLOCKED: " + json.message); 
+        }
+
         setData(json);
         localStorage.setItem(CACHE_KEY_PREFIX + masjidId, JSON.stringify(json));
       } catch (err) {
@@ -1066,7 +1096,7 @@ export default function App() {
       } finally { setLoading(false); }
     };
     fetchData();
-  }, [masjidId]);
+  }, [masjidId]); // Dependency tetap masjidId
 
   useEffect(() => {
     if(!data) return;
@@ -1075,7 +1105,7 @@ export default function App() {
   }, [data]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-emerald-600">Loading...</div>;
-  if (error) return <div className="min-h-screen flex items-center justify-center text-red-500">{error}</div>;
+  if (error) return <div className="min-h-screen flex flex-col items-center justify-center text-center p-6"><p className="text-red-500 font-bold mb-4">{error}</p></div>;
   if (!data) return null;
 
   return (

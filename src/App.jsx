@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
-// ⚠️ GANTI DENGAN URL DEPLOYMENT GOOGLE SCRIPT BARU (Code.gs v25.0)
+// ⚠️ GANTI DENGAN URL DEPLOYMENT GOOGLE SCRIPT TERBARU
 const API_URL = "https://script.google.com/macros/s/AKfycbxLDuRPPj1EuijltnonqJe9mBE6Jz9lTaAn_nZrr_7C5h5An0aWz32RVaamnRVsmokC/exec"; 
 const CACHE_KEY_PREFIX = "masjid_data_"; 
 
@@ -52,24 +52,23 @@ const optimizeImage = (url, width = 800) => {
   return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=${width}&q=80&output=webp`;
 };
 
-// FIX HIJRI DATE (Mobile Friendly Fallback)
+// FIX HIJRI DATE MOBILE (Fallback manual jika Intl tidak support)
 const getHijriDate = () => {
   try {
     const date = new Intl.DateTimeFormat('id-ID-u-ca-islamic', { day: 'numeric', month: 'long', year: 'numeric' }).format(Date.now());
-    // Cek jika hasil konversi valid (mengandung angka dan bukan default masehi)
-    if (!date.match(/\d/) || date.includes("Jan") || date.includes("Des")) {
-       return "Kalender Hijriyah"; // Fallback text jika HP tidak support
+    // Cek apakah hasilnya valid (mengandung tahun Hijriah atau angka). Jika browser mobile return Masehi, paksa fallback.
+    if (!date.match(/[0-9]/) || date.toLowerCase().includes("januari") || date.toLowerCase().includes("desember")) {
+        // Fallback simple string agar tidak rusak tampilannya
+        return "Kalender Hijriyah"; 
     }
     return date.replace('Tahun', '').replace(/ H/g, '').trim() + " H";
   } catch (e) {
-    return "Hijriyah Mode"; // Fail safe
+    return "Mode Hijriyah";
   }
 };
 
 const getMasehiDate = () => {
-  try {
-    return new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(Date.now()) + " M";
-  } catch (e) { return ""; }
+  return new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(Date.now()) + " M";
 };
 
 const calculateTimeStatus = (jadwal, config) => {
@@ -123,19 +122,19 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
   );
 };
 
-// FIX MODAL: Add z-index higher than footer (z-50) and extra padding bottom for mobile
+// FIX MODAL MOBILE: Tambahkan z-index tinggi dan padding bottom extra agar tidak tertutup footer
 const ModalInput = ({ isOpen, onClose, title, onSubmit, children }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 bg-black/60 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white w-full sm:w-full max-w-sm sm:rounded-2xl rounded-t-2xl p-6 shadow-2xl transform transition-all max-h-[85vh] overflow-y-auto pb-20 sm:pb-6">
+    <div className="fixed inset-0 bg-black/60 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white w-full sm:w-full max-w-sm sm:rounded-2xl rounded-t-2xl p-6 shadow-2xl transform transition-all max-h-[85vh] overflow-y-auto pb-24 sm:pb-6">
         <div className="flex justify-between items-center mb-5 border-b border-gray-100 pb-3 sticky top-0 bg-white z-10">
           <h3 className="font-bold text-lg text-gray-800">{title}</h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full transition-colors"><X size={24} className="text-gray-400 hover:text-gray-600"/></button>
         </div>
         <form onSubmit={onSubmit} className="space-y-4">
           {children}
-          <button type="submit" className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold mt-4 shadow-lg hover:bg-emerald-700 active:scale-95 transition-all">Simpan Data</button>
+          <button type="submit" className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold mt-2 shadow-lg hover:bg-emerald-700 active:scale-95 transition-all">Simpan Data</button>
         </form>
       </div>
     </div>
@@ -164,7 +163,7 @@ const ActivitySlider = ({ slides = [] }) => {
   );
 };
 
-// --- DASHBOARD COMPONENTS ---
+// --- DASHBOARD PANELS ---
 const DashboardAdmin = ({ data }) => (
   <div className="space-y-3"><Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 shadow-sm"><div className="flex items-center gap-3"><div className="bg-blue-100 p-2 rounded-lg text-blue-700"><Shield size={24}/></div><div><h3 className="font-bold text-blue-800">Panel Ketua (Admin)</h3><p className="text-xs text-blue-600">Akses Penuh ke seluruh sistem</p></div></div></Card></div>
 );
@@ -184,7 +183,10 @@ const Header = ({ profile, config, setView, timeStatus, isOffline, currentUser }
     const interval = setInterval(() => setShowHijri(prev => !prev), duration);
     return () => clearInterval(interval);
   }, [config]);
-  const bgImage = profile?.bg_utama || "https://images.unsplash.com/photo-1542042956-654e99092d6e?q=80&w=1000";
+  
+  // FIX KEY: Backend v25.1 normalization for 'Foto_Masjid' -> 'fotomasjid'
+  const bgImage = profile?.bg_utama || profile?.fotomasjid || "https://images.unsplash.com/photo-1542042956-654e99092d6e?q=80&w=1000";
+  
   return (
     <header className={`relative pt-6 pb-20 px-4 rounded-b-[2rem] overflow-hidden shadow-lg transition-all duration-500`}>
       <div className="absolute inset-0 z-0"><img src={optimizeImage(bgImage, 800)} alt="Masjid" className="w-full h-full object-cover" /><div className={`absolute inset-0 ${['iqomah', 'adzan'].includes(timeStatus.status) ? 'bg-red-900/90' : 'bg-gradient-to-b from-emerald-900/80 to-emerald-800/90'}`}></div></div>
@@ -289,6 +291,278 @@ const ViewHome = ({ data, setView, timeStatus, currentUser }) => {
     </div>
   );
 };
+
+// --- SUB PAGES (FIXED KEYS FOR v25.2 BACKEND) ---
+
+const ViewTPA = ({ data, onBack }) => { 
+  // Config WA: Fallback ke nomor admin jika profil kosong
+  const waNum = data?.profile?.wa_admin || data?.config?.waadmin || "";
+  const openWA = () => { window.open(`https://wa.me/${waNum}?text=Assalamualaikum%2C%20saya%20ingin%20mendaftar%20TPA`, '_blank'); }; 
+  
+  const stats = data?.tpa?.stats || { total: 0, ikhwan: 0, akhwat: 0 };
+  const list = data?.tpa?.list || [];
+  
+  const [page, setPage] = useState(1);
+  const perPage = 5;
+  const totalPages = Math.ceil(list.length / perPage);
+  const displayList = list.slice((page - 1) * perPage, page * perPage);
+
+  return (
+    <div className="pb-24 pt-4 px-4 min-h-screen bg-gray-50 animate-fade-in">
+      <button onClick={onBack} className="mb-4 flex text-sm text-gray-600 hover:text-emerald-600 transition-colors"><ArrowLeft size={16} className="mr-1"/> Kembali</button>
+      <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2"><GraduationCap className="text-yellow-500"/> Data TPA/TPQ</h2>
+      
+      {/* STATISTIK */}
+      <div className="grid grid-cols-3 gap-2 mb-6">
+        <div className="bg-yellow-50 p-3 rounded-xl border border-yellow-200 text-center shadow-sm">
+          <p className="text-[10px] text-yellow-700 uppercase font-bold tracking-wider">Total Santri</p>
+          <p className="font-bold text-yellow-800 text-2xl mt-1">{stats.total}</p>
+        </div>
+        <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 text-center shadow-sm">
+          <p className="text-[10px] text-blue-700 uppercase font-bold tracking-wider">Ikhwan</p>
+          <p className="font-bold text-blue-800 text-2xl mt-1">{stats.ikhwan}</p>
+        </div>
+        <div className="bg-pink-50 p-3 rounded-xl border border-pink-200 text-center shadow-sm">
+          <p className="text-[10px] text-pink-700 uppercase font-bold tracking-wider">Akhwat</p>
+          <p className="font-bold text-pink-800 text-2xl mt-1">{stats.akhwat}</p>
+        </div>
+      </div>
+
+      <div className="mb-6 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+        <h3 className="font-bold text-gray-800 mb-3 text-sm">Komposisi Santri</h3>
+        <div className="flex gap-1 h-4 rounded-full overflow-hidden bg-gray-100">
+          <div className="bg-blue-500 h-full transition-all duration-1000" style={{ width: `${stats.total ? (stats.ikhwan / stats.total) * 100 : 0}%` }}></div>
+          <div className="bg-pink-500 h-full transition-all duration-1000" style={{ width: `${stats.total ? (stats.akhwat / stats.total) * 100 : 0}%` }}></div>
+        </div>
+        <div className="flex justify-between text-[10px] mt-2 text-gray-500 font-medium">
+          <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Ikhwan ({stats.total ? Math.round((stats.ikhwan / stats.total) * 100) : 0}%)</span>
+          <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-pink-500"></div> Akhwat ({stats.total ? Math.round((stats.akhwat / stats.total) * 100) : 0}%)</span>
+        </div>
+      </div>
+
+      {/* LIST SANTRI */}
+      <div className="mb-6">
+        <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><List size={16} className="text-emerald-600"/> Daftar Santri Aktif</h3>
+        <div className="space-y-2">
+          {displayList.length > 0 ? displayList.map((item, idx) => {
+            // FIX KEY: Backend v25.2 normalizes "Jenis_Kelamin" to "jeniskelamin"
+            const jk = item.jeniskelamin || item.jenis_kelamin || "-";
+            const nama = item.nama || "Tanpa Nama";
+            const initial = nama.charAt(0);
+            
+            return (
+              <Card key={idx} className="flex justify-between items-center py-3 px-4 hover:bg-gray-50 transition-colors border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm ${String(jk).toUpperCase().startsWith('L') ? 'bg-blue-500' : 'bg-pink-500'}`}>
+                    {initial}
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm text-gray-800 leading-tight">{nama}</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">{String(jk).toUpperCase().startsWith('L') ? 'Laki-laki' : 'Perempuan'}</p>
+                  </div>
+                </div>
+                <Badge type="success">Aktif</Badge>
+              </Card>
+            );
+          }) : (
+            <div className="text-center py-8 bg-white rounded-xl border border-dashed border-gray-300">
+              <p className="text-sm text-gray-400">Belum ada data santri.</p>
+            </div>
+          )}
+        </div>
+        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+      </div>
+
+      <button onClick={openWA} className="w-full bg-emerald-600 text-white py-3.5 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 hover:bg-emerald-700 active:scale-95 transition-all">
+        <MessageCircle size={20}/> Pendaftaran Santri via WA
+      </button>
+    </div>
+  ); 
+};
+
+const ViewDonasi = ({ data, onBack }) => {
+  const [activeTab, setActiveTab] = useState('transfer');
+  const [customAmount, setCustomAmount] = useState(''); 
+  const [copied, setCopied] = useState(false);
+  const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
+  
+  const copyRekening = () => { 
+    if(data?.profile?.rekening) {
+      navigator.clipboard.writeText(data.profile.rekening); 
+      setCopied(true); 
+      setTimeout(() => setCopied(false), 2000); 
+    }
+  };
+  
+  const waNum = data?.profile?.wa_admin || data?.config?.waadmin || "";
+  const openWA = (amount) => { 
+    const val = amount || customAmount;
+    const msg = val ? `Konfirmasi donasi sebesar ${val}` : `Konfirmasi donasi`; 
+    window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(msg)}`, '_blank'); 
+  };
+
+  const ziswafList = data?.ziswaf?.list || [];
+  const ziswafStats = data?.ziswaf?.stats || {};
+  const [page, setPage] = useState(1);
+  const perPage = 5;
+  const totalPages = Math.ceil(ziswafList.length / perPage);
+  const displayList = ziswafList.slice((page - 1) * perPage, page * perPage);
+
+  return (
+    <div className="pb-24 pt-4 px-4 min-h-screen bg-gray-50 animate-fade-in">
+      <button onClick={onBack} className="mb-4 flex text-sm text-gray-600 hover:text-emerald-600 transition-colors"><ArrowLeft size={16} className="mr-1"/> Kembali</button>
+      <div className="text-center mb-6">
+        <div className="bg-pink-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-pink-600 shadow-sm"><Heart size={32}/></div>
+        <h2 className="text-xl font-bold text-gray-800">Infaq & ZISWAF</h2>
+        <p className="text-sm text-gray-500">Salurkan donasi terbaik anda</p>
+      </div>
+      
+      {/* TABS */}
+      <div className="flex p-1 bg-gray-200 rounded-xl mb-6 shadow-inner">
+        <button onClick={() => setActiveTab('transfer')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'transfer' ? 'bg-white shadow text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>Transfer/QRIS</button>
+        <button onClick={() => setActiveTab('list')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'list' ? 'bg-white shadow text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}>Daftar Donatur</button>
+      </div>
+
+      {activeTab === 'transfer' ? (
+        <div className="space-y-4 animate-fade-in">
+          <Card className="text-center border-emerald-200 bg-emerald-50">
+            <h3 className="font-bold text-emerald-800 mb-2 text-sm uppercase tracking-wide">Scan QRIS</h3>
+            {/* FIX KEY: Backend v25.2 normalizes 'qris_url' -> 'qrisurl' */}
+            {data?.profile?.qrisurl || data?.profile?.qris_url ? (
+              <img src={optimizeImage(data.profile.qrisurl || data.profile.qris_url, 400)} alt="QRIS" className="w-48 h-48 mx-auto object-cover rounded-lg mix-blend-multiply border border-white shadow-sm" />
+            ) : (
+              <div className="w-48 h-48 mx-auto bg-gray-200 rounded-lg flex items-center justify-center text-xs text-gray-500">QRIS Belum Tersedia</div>
+            )}
+            <p className="text-xs text-emerald-600 mt-2 font-medium">Otomatis terdeteksi seluruh E-Wallet</p>
+          </Card>
+          <Card>
+            <h3 className="font-bold text-gray-800 mb-3 text-sm uppercase tracking-wide">Transfer Bank</h3>
+            <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex justify-between items-center mb-4">
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Rekening Resmi</p>
+                <p className="text-lg font-mono font-bold text-gray-800 my-1 leading-tight">{data?.profile?.rekening || "-"}</p>
+                {/* FIX KEY: nama_masjid -> namamasjid */}
+                <p className="text-xs text-gray-600 font-medium">a.n {data?.profile?.namamasjid || data?.profile?.nama}</p>
+              </div>
+              <button onClick={copyRekening} className={`p-2 border rounded-lg transition-all active:scale-95 ${copied ? 'bg-emerald-100 border-emerald-500 text-emerald-600' : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-600'}`}>
+                {copied ? <CheckCircle size={20}/> : <Copy size={20}/>}
+              </button>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-gray-500 mb-2 font-medium">Pilih Nominal Konfirmasi:</p>
+              <div className="flex gap-2 justify-center mb-4">
+                <button onClick={() => openWA("Rp 50.000")} className="px-4 py-1.5 bg-green-50 text-green-700 text-xs font-bold rounded-full border border-green-200 hover:bg-green-100 transition-colors">50rb</button>
+                <button onClick={() => openWA("Rp 100.000")} className="px-4 py-1.5 bg-green-50 text-green-700 text-xs font-bold rounded-full border border-green-200 hover:bg-green-100 transition-colors">100rb</button>
+                <button onClick={() => openWA("Rp 500.000")} className="px-4 py-1.5 bg-green-50 text-green-700 text-xs font-bold rounded-full border border-green-200 hover:bg-green-100 transition-colors">500rb</button>
+              </div>
+              <div className="mt-4 border-t border-gray-100 pt-4">
+                <p className="text-xs text-gray-500 mb-2 font-medium text-left">Nominal Lainnya:</p>
+                <div className="flex gap-2">
+                  <input type="number" placeholder="Contoh: 150000" value={customAmount} onChange={(e) => setCustomAmount(e.target.value)} className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all" />
+                  <button onClick={() => openWA(customAmount ? `Rp ${new Intl.NumberFormat('id-ID').format(customAmount)}` : '')} disabled={!customAmount} className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-700 transition-colors">Kirim Bukti</button>
+                </div>
+              </div>
+              <button onClick={() => openWA("")} className="w-full mt-4 bg-gray-100 text-gray-700 py-3 rounded-xl font-bold shadow-sm flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors">
+                <MessageCircle size={20}/> Chat Manual Admin
+              </button>
+            </div>
+          </Card>
+        </div>
+      ) : (
+        <div className="space-y-4 animate-fade-in">
+          {/* ZISWAF STATS */}
+          <div className="grid grid-cols-2 gap-3">
+             {Object.entries(ziswafStats).map(([key, val]) => (
+                <div key={key} className="bg-white p-4 rounded-xl border border-gray-100 text-center shadow-sm">
+                   <p className="text-[10px] text-gray-500 mb-1 capitalize tracking-wider font-bold">{key}</p>
+                   <p className="font-bold text-gray-800 text-sm truncate">{fmt(val)}</p>
+                </div>
+             ))}
+          </div>
+          
+          {/* LIST */}
+          <Card>
+            <h4 className="text-xs font-bold text-gray-800 mb-3 flex items-center gap-2 uppercase tracking-wide"><List size={14} className="text-emerald-600"/> Riwayat Donasi Terbaru</h4>
+            <div className="space-y-2">
+              {displayList.length > 0 ? displayList.map((d, i) => (
+                <div key={i} className="flex justify-between items-center text-sm border-b border-gray-50 last:border-0 pb-3 last:pb-0 hover:bg-gray-50 p-2 rounded transition-colors">
+                  <div>
+                    <p className="font-bold text-xs text-gray-700 mb-1">{d.nama}</p>
+                    <Badge type="info">{d.jenis}</Badge>
+                  </div>
+                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">{fmt(d.nominal)}</span>
+                </div>
+              )) : <p className="text-center text-xs text-gray-400 py-6">Belum ada data donasi.</p>}
+            </div>
+            <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ViewPetugas = ({ data, onBack }) => {
+  const items = data?.penceramah || [];
+  return (
+    <div className="pb-24 pt-4 px-4 min-h-screen bg-gray-50 animate-fade-in">
+      <button onClick={onBack} className="mb-4 flex items-center text-sm font-semibold text-gray-600 hover:text-emerald-600 transition-colors"><ArrowLeft size={16} className="mr-1"/> Kembali</button>
+      <div className="text-center mb-6"><div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-blue-600 shadow-sm"><Users size={32}/></div><h2 className="text-xl font-bold text-gray-800">Petugas Masjid</h2><p className="text-sm text-gray-500">Imam, Khotib & Pemateri</p></div>
+      <div className="space-y-3">
+        {items.length > 0 ? (
+          items.map((p, idx) => (
+            <Card key={idx} className="flex items-center gap-4 hover:shadow-md transition-shadow duration-300">
+              <div className="bg-gray-100 w-12 h-12 rounded-full flex items-center justify-center text-gray-500 shrink-0"><UserCircle size={32}/></div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-gray-800 truncate">{p.nama}</h3>
+                <div className="flex justify-between items-center mt-1">
+                   <Badge type="blue">{p.spesialisasi || "Pemateri"}</Badge>
+                   {/* FIX KEY: Backend v25.2 normalizes "No_WA" -> "nowa" */}
+                   {(p.nowa || p.no_wa) && <a href={`https://wa.me/${p.nowa || p.no_wa}`} target="_blank" className="text-emerald-600 text-xs flex items-center gap-1 hover:underline font-medium"><MessageCircle size={12}/> Hubungi</a>}
+                </div>
+              </div>
+            </Card>
+          ))
+        ) : (<p className="text-center text-gray-400 text-sm py-10 bg-white rounded-xl border border-dashed">Belum ada data petugas.</p>)}
+      </div>
+    </div>
+  );
+};
+
+const ViewKegiatan = ({ data, onBack }) => {
+  const items = data?.kegiatan || [];
+  return (
+    <div className="pb-24 pt-4 px-4 min-h-screen bg-gray-50 animate-fade-in">
+      <button onClick={onBack} className="mb-4 flex text-sm text-gray-600 hover:text-emerald-600 transition-colors"><ArrowLeft size={16} className="mr-1"/> Kembali</button>
+      <div className="flex items-center justify-between mb-4"><h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><CalendarDays className="text-purple-600"/> Agenda Kegiatan</h2></div>
+      <div className="space-y-3">
+        {items.length > 0 ? items.map((item, idx) => {
+          // FIX KEY: Backend v25.2 normalizes "Ustadz/Pic" -> "ustadzpic"
+          const pic = item.ustadz || item.ustadzpic || "Panitia";
+          const tgl = item.waktu ? item.waktu.split(' ')[0].substring(0,2) : '--';
+          
+          return (
+            <Card key={idx} className="flex gap-4 hover:shadow-md transition-all duration-300 border-l-4 border-l-purple-500">
+              <div className="flex flex-col items-center justify-center bg-purple-50 w-14 h-14 rounded-lg text-purple-700 shrink-0 border border-purple-100">
+                 <span className="text-[10px] font-bold uppercase tracking-wider">TGL</span>
+                 <span className="text-xl font-bold">{tgl}</span>
+              </div>
+              <div className="flex-1">
+                 <div className="flex justify-between items-start">
+                   <Badge type="purple">Kajian</Badge>
+                 </div>
+                 <h3 className="font-bold text-gray-800 mt-1 text-sm leading-snug">{item.judul}</h3>
+                 <p className="text-xs text-gray-600 mt-1 flex items-center gap-1 font-medium"><UserCircle size={12} className="text-purple-400"/> {pic}</p>
+                 <div className="flex items-center gap-1 mt-2 text-[10px] text-gray-500 bg-gray-50 px-2 py-1 rounded w-fit"><Clock size={10}/> {item.waktu}</div>
+              </div>
+            </Card>
+          );
+        }) : <p className="text-center text-sm text-gray-400 py-10 bg-white rounded-xl border border-dashed">Tidak ada agenda aktif.</p>}
+      </div>
+    </div>
+  );
+};
+
 const ViewPembangunan = ({ data, onBack }) => {
   const [activeTab, setActiveTab] = useState('laporan'); 
   const listPembangunan = data?.pembangunan?.list || [];
@@ -301,8 +575,8 @@ const ViewPembangunan = ({ data, onBack }) => {
   const displayDonors = donors.slice((donorPage - 1) * perPage, donorPage * perPage);
   
   const maxVal = Math.max(stats.total_masuk, stats.total_keluar, 1);
-  const wIn = (stats.total_masuk / maxVal) * 100;
-  const wOut = (stats.total_keluar / maxVal) * 100;
+  const wIn = maxVal > 0 ? (stats.total_masuk / maxVal) * 100 : 0;
+  const wOut = maxVal > 0 ? (stats.total_keluar / maxVal) * 100 : 0;
   const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
   
   const [expandedIndex, setExpandedIndex] = useState(null);
@@ -311,14 +585,14 @@ const ViewPembangunan = ({ data, onBack }) => {
   // Construction Slider
   const ConstructionSlider = ({ stages }) => {
     const [idx, setIdx] = useState(0);
-    // Filter hanya yang ada URL fotonya
-    const validStages = stages.filter(s => (s.foto_url || s.fotourl) && (s.foto_url || s.fotourl).length > 5);
+    // FIX KEY: Backend v25.2 normalizes "Foto_URL" -> "fotourl"
+    const validStages = stages.filter(s => (s.fotourl || s.foto_url) && (s.fotourl || s.foto_url).length > 5);
     
     return (
       <div className="relative w-full h-56 bg-gray-100 rounded-xl overflow-hidden mb-6 group shadow-lg border border-gray-200">
         {validStages.length > 0 ? (
           <>
-            <img src={optimizeImage(validStages[idx].foto_url || validStages[idx].fotourl, 800)} className="w-full h-full object-cover transition-all duration-500" alt="Progress" />
+            <img src={optimizeImage(validStages[idx].fotourl || validStages[idx].foto_url, 800)} className="w-full h-full object-cover transition-all duration-500" alt="Progress" />
             <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 text-white">
               <div className="flex justify-between items-center mb-1">
                  <span className="font-bold text-sm bg-black/30 px-2 py-1 rounded backdrop-blur-sm border border-white/20">Tahap {validStages[idx].tahap}</span>
@@ -364,8 +638,8 @@ const ViewPembangunan = ({ data, onBack }) => {
           <div className="space-y-3">
             {listPembangunan.map((item, idx) => {
               const isOpen = expandedIndex === idx;
-              // Handle key variations due to backend normalization
-              const fotoUrl = item.foto_url || item.fotourl;
+              // FIX KEY: Backend v25.2 normalization
+              const fotoUrl = item.fotourl || item.foto_url;
               const lastUpdate = item.lastupdate || item.tanggal || "-";
               
               return (
@@ -450,7 +724,7 @@ const ViewPembangunan = ({ data, onBack }) => {
   ); 
 };
 
-// --- VIEW RAMADHAN (RESTORED) ---
+// --- RESTORED RAMADHAN VIEW ---
 const ViewRamadhan = ({ data, onBack }) => {
   // Logic Filter Agenda Ramadhan (Safe Key Access)
   const agendaRamadhan = data?.kegiatan?.filter(k => {
@@ -485,7 +759,7 @@ const ViewRamadhan = ({ data, onBack }) => {
          <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><CalendarDays size={16} className="text-purple-600"/> Agenda Ramadhan</h3>
          <div className="space-y-3">
            {agendaRamadhan.length > 0 ? agendaRamadhan.map((item, idx) => {
-             // Handle Safe Access
+             // FIX KEY: Backend v25.2 normalization "Ustadz/Pic" -> "ustadzpic"
              const pic = item.ustadz || item.ustadzpic || "Panitia";
              const tgl = item.waktu ? item.waktu.split(' ')[0] : '';
              return (
@@ -528,7 +802,9 @@ const ViewIdulFitri = ({ data, onBack }) => (
 );
 
 const ViewQurban = ({ data, onBack }) => { 
-  const openWA = () => { window.open(`https://wa.me/${data?.profile?.wa_admin}?text=${encodeURIComponent(`Assalamualaikum, daftar qurban`)}`, '_blank'); }; 
+  const waNum = data?.profile?.wa_admin || data?.config?.waadmin || "";
+  const openWA = () => { window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(`Assalamualaikum, daftar qurban`)}`, '_blank'); }; 
+  
   return (
     <div className="pb-24 pt-4 px-4 min-h-screen bg-gray-50 animate-fade-in">
       <button onClick={onBack} className="mb-4 flex text-sm text-gray-600 hover:text-red-600 transition-colors"><ArrowLeft size={16} className="mr-1"/> Kembali</button>
@@ -551,7 +827,8 @@ const ViewQurban = ({ data, onBack }) => {
         <h3 className="font-bold text-gray-800 mb-4 text-sm uppercase tracking-wide">Daftar Shohibul Qurban</h3>
         <div className="space-y-4">
           {data?.qurban?.hewan?.map((item, idx) => {
-            // Handle key variations (Safe Access)
+            // FIX KEY: Backend v25.2 normalization
+            // "Nama_Shohib" -> "namashohib", "Jenis_Hewan" -> "jenishewan"
             const nama = item.namashohib || item.nama_shohib || "Hamba Allah";
             const hewan = item.jenishewan || item.jenis_hewan || "-";
             const status = item.statusbayar || item.status_bayar || "BELUM";
@@ -581,7 +858,7 @@ const ViewQurban = ({ data, onBack }) => {
 const ViewTV = ({ data, onBack, timeStatus }) => {
   const [time, setTime] = useState(new Date());
   const [slideIndex, setSlideIndex] = useState(0); 
-  const bgImage = data?.profile?.bg_utama || "https://images.unsplash.com/photo-1542042956-654e99092d6e?q=80&w=1920";
+  const bgImage = data?.profile?.bg_utama || data?.profile?.fotomasjid || "https://images.unsplash.com/photo-1542042956-654e99092d6e?q=80&w=1920";
   
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -706,6 +983,7 @@ const ViewAdmin = ({ data, onBack, setView, onLogin, currentUser, masjidId, send
     e.preventDefault();
     if (!data?.users) { alert("Data user tidak ditemukan."); return; }
     
+    // Superadmin bypass (Opsional)
     if (username === "vendor" && password === "admin123") { 
         onLogin({ role: "SUPERADMIN", nama: "Vendor Pusat" }); 
         return; 

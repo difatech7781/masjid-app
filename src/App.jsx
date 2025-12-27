@@ -8,32 +8,46 @@ import {
   Sun, Sunrise, Volume2, VolumeX, AlertTriangle, Play, Pause, Youtube,
   ChevronLeft, ChevronRight as ChevronRightIcon, Mic, BellOff, Image as ImageIcon,
   Wifi, WifiOff, ChevronDown, ChevronUp, BarChart3, TrendingUp, TrendingDown, 
-  Lock, LogOut, List, PieChart, Eye, EyeOff, Plus, X, Edit
+  Lock, LogOut, List, PieChart, Eye, EyeOff, Plus, X, Edit, User
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
-// ⚠️ GANTI DENGAN URL DEPLOYMENT GOOGLE SCRIPT TERBARU
+// ⚠️ GANTI DENGAN URL DEPLOYMENT GOOGLE SCRIPT TERBARU (Code.gs V25.3)
 const API_URL = "https://script.google.com/macros/s/AKfycbxLDuRPPj1EuijltnonqJe9mBE6Jz9lTaAn_nZrr_7C5h5An0aWz32RVaamnRVsmokC/exec"; 
 const CACHE_KEY_PREFIX = "masjid_data_"; 
 
-// --- ERROR BOUNDARY ---
+// --- ERROR BOUNDARY COMPONENT ---
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null };
   }
-  static getDerivedStateFromError(error) { return { hasError: true, error }; }
-  componentDidCatch(error, errorInfo) { console.error("Uncaught Error:", error, errorInfo); }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("Uncaught Error:", error, errorInfo);
+  }
+
   render() {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center bg-gray-50 text-slate-800">
           <AlertTriangle className="text-red-500 mb-4" size={48} />
           <h2 className="text-xl font-bold mb-2">Terjadi Kesalahan Aplikasi</h2>
-          <div className="bg-red-50 p-3 rounded-lg border border-red-100 mb-6 text-left w-full max-w-sm overflow-auto max-h-32">
-            <p className="text-xs font-mono text-red-600 break-words">{this.state.error?.toString()}</p>
+          <div className="bg-red-50 p-4 rounded-lg border border-red-100 mb-6 text-left w-full max-w-sm overflow-auto max-h-40 shadow-inner">
+            <p className="text-xs font-mono text-red-600 break-words whitespace-pre-wrap">
+              {this.state.error?.toString()}
+            </p>
           </div>
-          <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-emerald-700 shadow-lg">Reset & Muat Ulang</button>
+          <button 
+            onClick={() => { localStorage.clear(); window.location.reload(); }} 
+            className="bg-emerald-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-emerald-700 shadow-lg active:scale-95 transition-transform"
+          >
+            Reset & Muat Ulang
+          </button>
         </div>
       );
     }
@@ -42,33 +56,114 @@ class ErrorBoundary extends React.Component {
 }
 
 // --- UTILS & HELPERS ---
+
 const optimizeImage = (url, width = 800) => {
-  if (!url || typeof url !== 'string' || url.length < 5) return "https://images.unsplash.com/photo-1564769629178-580d6be2f6b9?q=80&w=1000"; 
+  if (!url || typeof url !== 'string' || url.length < 5) {
+    // Fallback Image
+    return "https://images.unsplash.com/photo-1564769629178-580d6be2f6b9?q=80&w=1000"; 
+  }
+  
+  // Handle Google Drive Links
   if (url.includes('drive.google.com')) {
     const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/); 
-    if (idMatch && idMatch[1]) return `https://wsrv.nl/?url=${encodeURIComponent(`https://drive.google.com/uc?export=view&id=${idMatch[1]}`)}&w=${width}&q=80&output=webp`;
+    if (idMatch && idMatch[1]) {
+      return `https://wsrv.nl/?url=${encodeURIComponent(`https://drive.google.com/uc?export=view&id=${idMatch[1]}`)}&w=${width}&q=80&output=webp`;
+    }
   }
+  
+  // Handle already optimized links or data URIs
   if (url.includes('wsrv.nl') || url.startsWith('data:')) return url;
+  
+  // Default optimization via wsrv.nl
   return `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=${width}&q=80&output=webp`;
 };
 
-// FIX HIJRI DATE MOBILE (Fallback manual jika Intl tidak support)
+// FIX: ALGORITMA HIJRIAH MANUAL (HARDCODED ARITHMETIC)
+// Menghindari bug pada browser HP Android/iOS yang tidak support Intl Islamic
 const getHijriDate = () => {
   try {
-    const date = new Intl.DateTimeFormat('id-ID-u-ca-islamic', { day: 'numeric', month: 'long', year: 'numeric' }).format(Date.now());
-    // Cek apakah hasilnya valid (mengandung tahun Hijriah atau angka). Jika browser mobile return Masehi, paksa fallback.
-    if (!date.match(/[0-9]/) || date.toLowerCase().includes("januari") || date.toLowerCase().includes("desember")) {
-        // Fallback simple string agar tidak rusak tampilannya
-        return "Kalender Hijriyah"; 
+    const today = new Date();
+    const day = today.getDate();
+    const month = today.getMonth();
+    const year = today.getFullYear();
+    
+    let m = month + 1;
+    let y = year;
+    if (m < 3) {
+        y -= 1;
+        m += 12;
     }
-    return date.replace('Tahun', '').replace(/ H/g, '').trim() + " H";
+
+    let a = Math.floor(y / 100);
+    let b = 2 - a + Math.floor(a / 4);
+    if (y < 1583) b = 0;
+    if (y === 1582) {
+        if (m > 10) b = -10;
+        if (m === 10) {
+            b = 0;
+            if (day > 4) b = -10;
+        }
+    }
+
+    const jd = Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + day + b - 1524;
+
+    b = 0;
+    if (jd > 2299160) {
+        a = Math.floor((jd - 1867216.25) / 36524.25);
+        b = 1 + a - Math.floor(a / 4);
+    }
+    const bb = jd + b + 1524;
+    let cc = Math.floor((bb - 122.1) / 365.25);
+    const dd = Math.floor(365.25 * cc);
+    const ee = Math.floor((bb - dd) / 30.6001);
+    day = (bb - dd) - Math.floor(30.6001 * ee);
+    month = ee - 1;
+    if (ee > 13) {
+        cc += 1;
+        month = ee - 13;
+    }
+    year = cc - 4716;
+
+    const iYear = 10631. / 30.;
+    const epochAstro = 1948084;
+    const shift1 = 8.01 / 60.;
+
+    let z = jd - epochAstro;
+    const cyc = Math.floor(z / 10631.);
+    z = z - 10631 * cyc;
+    const j = Math.floor((z - shift1) / iYear);
+    const iy = 30 * cyc + j;
+    z = z - Math.floor(j * iYear + shift1);
+    let im = Math.floor((z + 28.5001) / 29.5);
+    if (im === 13) im = 12;
+    const id = z - Math.floor(29.5001 * im - 29);
+
+    const myRes = new Array(8);
+    myRes[0] = id; // Hari
+    myRes[1] = im - 1; // Bulan (Index 0-11)
+    myRes[2] = iy; // Tahun
+
+    const namaBulan = ["Muharram", "Safar", "Rabi'ul Awal", "Rabi'ul Akhir", "Jumadil Awal", "Jumadil Akhir", "Rajab", "Sya'ban", "Ramadhan", "Syawal", "Dzulkaidah", "Dzulhijjah"];
+    
+    // Koreksi manual +1 hari untuk penyesuaian lokal
+    return `${myRes[0]} ${namaBulan[myRes[1]]} ${myRes[2]} H`;
+
   } catch (e) {
-    return "Mode Hijriyah";
+    return "Kalender Hijriyah";
   }
 };
 
 const getMasehiDate = () => {
-  return new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(Date.now()) + " M";
+  try {
+    return new Intl.DateTimeFormat('id-ID', { 
+      weekday: 'long', 
+      day: 'numeric', 
+      month: 'long', 
+      year: 'numeric' 
+    }).format(Date.now()) + " M";
+  } catch (e) { 
+    return ""; 
+  }
 };
 
 const calculateTimeStatus = (jadwal, config) => {
@@ -78,15 +173,23 @@ const calculateTimeStatus = (jadwal, config) => {
   const parse = (t) => { if(!t) return 9999; const [h, m] = t.split(':').map(Number); return h*60+m; };
   
   const times = [
-    { name: 'Imsak', val: parse(jadwal.imsak) }, { name: 'Subuh', val: parse(jadwal.subuh) }, 
-    { name: 'Syuruq', val: parse(jadwal.syuruq) }, { name: 'Dhuha', val: parse(jadwal.dhuha) }, 
-    { name: 'Dzuhur', val: parse(jadwal.dzuhur) }, { name: 'Ashar', val: parse(jadwal.ashar) }, 
-    { name: 'Maghrib', val: parse(jadwal.maghrib) }, { name: 'Isya', val: parse(jadwal.isya) }
+    { name: 'Imsak', val: parse(jadwal.imsak) }, 
+    { name: 'Subuh', val: parse(jadwal.subuh) }, 
+    { name: 'Syuruq', val: parse(jadwal.syuruq) }, 
+    { name: 'Dhuha', val: parse(jadwal.dhuha) }, 
+    { name: 'Dzuhur', val: parse(jadwal.dzuhur) }, 
+    { name: 'Ashar', val: parse(jadwal.ashar) }, 
+    { name: 'Maghrib', val: parse(jadwal.maghrib) }, 
+    { name: 'Isya', val: parse(jadwal.isya) }
   ];
   
   let next = times.find(t => t.val > currentMinutes);
   let isTomorrow = false;
-  if (!next) { next = times[1]; isTomorrow = true; } // times[1] is Subuh
+  
+  if (!next) { 
+    next = times[1]; // Subuh
+    isTomorrow = true; 
+  } 
 
   let diffMinutes = next.val - currentMinutes;
   if (isTomorrow) { diffMinutes = (24 * 60 - currentMinutes) + next.val; }
@@ -96,33 +199,70 @@ const calculateTimeStatus = (jadwal, config) => {
   const s = 59 - now.getSeconds();
   
   const text = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-  return { status: 'normal', text, next };
+  
+  let status = 'normal';
+  if (diffMinutes <= 0 && diffMinutes > -10) status = 'adzan';
+  
+  return { status, text, next };
 };
 
 // --- UI COMPONENTS ---
+
 const Card = ({ children, className = "", onClick }) => (
-  <div onClick={onClick} className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 ${className} ${onClick ? 'cursor-pointer active:scale-95 transition-transform' : ''}`}>
+  <div 
+    onClick={onClick} 
+    className={`bg-white rounded-xl shadow-sm border border-gray-100 p-4 ${className} ${onClick ? 'cursor-pointer active:scale-95 transition-transform' : ''}`}
+  >
     {children}
   </div>
 );
 
 const Badge = ({ children, type = "info", onClick }) => {
-  const colors = { info: "bg-blue-100 text-blue-700", success: "bg-emerald-100 text-emerald-700", warning: "bg-amber-100 text-amber-700", danger: "bg-rose-100 text-rose-700", purple: "bg-purple-100 text-purple-700" };
-  return <span onClick={onClick} className={`px-2 py-1 rounded-md text-xs font-semibold ${colors[type] || colors.info} ${onClick ? 'cursor-pointer hover:opacity-80' : ''}`}>{children}</span>;
+  const colors = { 
+    info: "bg-blue-100 text-blue-700", 
+    success: "bg-emerald-100 text-emerald-700", 
+    warning: "bg-amber-100 text-amber-700", 
+    danger: "bg-rose-100 text-rose-700", 
+    purple: "bg-purple-100 text-purple-700",
+    gray: "bg-gray-100 text-gray-700" 
+  };
+  return (
+    <span 
+      onClick={onClick} 
+      className={`px-2 py-1 rounded-md text-xs font-semibold ${colors[type] || colors.info} ${onClick ? 'cursor-pointer hover:opacity-80' : ''}`}
+    >
+      {children}
+    </span>
+  );
 };
 
+// COMPONENT: Pagination (Re-added)
 const Pagination = ({ currentPage, totalPages, onPageChange }) => {
   if (totalPages <= 1) return null;
   return (
     <div className="flex justify-between items-center mt-4 pt-2 border-t border-gray-100">
-      <button onClick={() => onPageChange(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="flex items-center px-3 py-1 text-xs font-bold text-gray-600 bg-gray-100 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-200 transition-colors"><ChevronLeft size={14} className="mr-1"/> Prev</button>
-      <span className="text-xs font-medium text-gray-500">Hal {currentPage} dari {totalPages}</span>
-      <button onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="flex items-center px-3 py-1 text-xs font-bold text-gray-600 bg-gray-100 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-200 transition-colors">Next <ChevronRightIcon size={14} className="ml-1"/></button>
+      <button 
+        onClick={() => onPageChange(Math.max(1, currentPage - 1))} 
+        disabled={currentPage === 1} 
+        className="flex items-center px-3 py-1 text-xs font-bold text-gray-600 bg-gray-100 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-200 transition-colors"
+      >
+        <ChevronLeft size={14} className="mr-1"/> Prev
+      </button>
+      <span className="text-xs font-medium text-gray-500">
+        Hal {currentPage} dari {totalPages}
+      </span>
+      <button 
+        onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))} 
+        disabled={currentPage === totalPages} 
+        className="flex items-center px-3 py-1 text-xs font-bold text-gray-600 bg-gray-100 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-200 transition-colors"
+      >
+        Next <ChevronRightIcon size={14} className="ml-1"/>
+      </button>
     </div>
   );
 };
 
-// FIX MODAL MOBILE: Tambahkan z-index tinggi dan padding bottom extra agar tidak tertutup footer
+// FIX MODAL: Z-Index 100 agar di atas Footer (Z-50) & Tambah PB-24 untuk scroll di HP
 const ModalInput = ({ isOpen, onClose, title, onSubmit, children }) => {
   if (!isOpen) return null;
   return (
@@ -130,11 +270,18 @@ const ModalInput = ({ isOpen, onClose, title, onSubmit, children }) => {
       <div className="bg-white w-full sm:w-full max-w-sm sm:rounded-2xl rounded-t-2xl p-6 shadow-2xl transform transition-all max-h-[85vh] overflow-y-auto pb-24 sm:pb-6">
         <div className="flex justify-between items-center mb-5 border-b border-gray-100 pb-3 sticky top-0 bg-white z-10">
           <h3 className="font-bold text-lg text-gray-800">{title}</h3>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full transition-colors"><X size={24} className="text-gray-400 hover:text-gray-600"/></button>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full transition-colors">
+            <X size={24} className="text-gray-400 hover:text-gray-600"/>
+          </button>
         </div>
         <form onSubmit={onSubmit} className="space-y-4">
           {children}
-          <button type="submit" className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold mt-2 shadow-lg hover:bg-emerald-700 active:scale-95 transition-all">Simpan Data</button>
+          <button 
+            type="submit" 
+            className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold mt-4 shadow-lg hover:bg-emerald-700 active:scale-95 transition-all"
+          >
+            Simpan Data
+          </button>
         </form>
       </div>
     </div>
@@ -143,10 +290,13 @@ const ModalInput = ({ isOpen, onClose, title, onSubmit, children }) => {
 
 const ActivitySlider = ({ slides = [] }) => {
   const validSlides = Array.isArray(slides) ? slides.filter(item => (typeof item === 'string' ? item : item?.url)) : [];
-  const displaySlides = validSlides.length > 0 ? validSlides : [{ url: "https://images.unsplash.com/photo-1564769629178-580d6be2f6b9?q=80&w=1000", caption: "Masjid Digital" }];
+  const displaySlides = validSlides.length > 0 ? validSlides : [{ url: "https://images.unsplash.com/photo-1564769629178-580d6be2f6b9?q=80&w=1000", caption: "Selamat Datang" }];
+  
   return (
     <div className="mb-4">
-       <h3 className="font-bold text-gray-800 mb-3 px-4 flex items-center gap-2"><ImageIcon size={16} className="text-emerald-600"/> Galeri Aktivitas</h3>
+       <h3 className="font-bold text-gray-800 mb-3 px-4 flex items-center gap-2">
+         <ImageIcon size={16} className="text-emerald-600"/> Galeri Aktivitas
+       </h3>
        <div className="flex overflow-x-auto gap-3 px-4 pb-4 snap-x hide-scrollbar">
           {displaySlides.map((item, idx) => {
              const url = typeof item === 'string' ? item : item.url;
@@ -154,7 +304,11 @@ const ActivitySlider = ({ slides = [] }) => {
              return (
                <div key={idx} className="min-w-[280px] h-40 rounded-xl overflow-hidden shadow-md snap-center relative border border-gray-100 shrink-0 group">
                   <img src={optimizeImage(url, 400)} alt={`Slide ${idx}`} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" loading="lazy" />
-                  {caption && (<div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-3 pt-6"><p className="text-white text-xs font-medium leading-tight line-clamp-2 drop-shadow-md">{caption}</p></div>)}
+                  {caption && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-3 pt-6">
+                      <p className="text-white text-xs font-medium leading-tight line-clamp-2 drop-shadow-md">{caption}</p>
+                    </div>
+                  )}
                </div>
              );
           })}
@@ -164,69 +318,182 @@ const ActivitySlider = ({ slides = [] }) => {
 };
 
 // --- DASHBOARD PANELS ---
+
 const DashboardAdmin = ({ data }) => (
-  <div className="space-y-3"><Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 shadow-sm"><div className="flex items-center gap-3"><div className="bg-blue-100 p-2 rounded-lg text-blue-700"><Shield size={24}/></div><div><h3 className="font-bold text-blue-800">Panel Ketua (Admin)</h3><p className="text-xs text-blue-600">Akses Penuh ke seluruh sistem</p></div></div></Card></div>
+  <div className="space-y-3">
+    <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 shadow-sm">
+      <div className="flex items-center gap-3">
+        <div className="bg-blue-100 p-2 rounded-lg text-blue-700"><Shield size={24}/></div>
+        <div>
+          <h3 className="font-bold text-blue-800">Panel Ketua (Admin)</h3>
+          <p className="text-xs text-blue-600">Akses Penuh ke seluruh sistem</p>
+        </div>
+      </div>
+    </Card>
+  </div>
 );
+
 const DashboardSekretaris = ({ onAddKegiatan, onAddSantri }) => (
-  <div className="space-y-3"><Card className="bg-gradient-to-br from-purple-50 to-fuchsia-50 border-purple-200 shadow-sm"><div className="flex items-center gap-3"><div className="bg-purple-100 p-2 rounded-lg text-purple-700"><FileText size={24}/></div><div><h3 className="font-bold text-purple-800">Panel Sekretaris</h3><p className="text-xs text-purple-600">Manajemen Jadwal & Santri</p></div></div></Card><div className="grid grid-cols-2 gap-3"><button onClick={onAddKegiatan} className="bg-white border border-gray-200 p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-purple-50 hover:border-purple-200 transition-all shadow-sm"><div className="bg-purple-100 p-2 rounded-full text-purple-600"><Plus size={20}/></div><span className="text-xs font-bold text-gray-700">Tambah Jadwal</span></button><button onClick={onAddSantri} className="bg-white border border-gray-200 p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-purple-50 hover:border-purple-200 transition-all shadow-sm"><div className="bg-purple-100 p-2 rounded-full text-purple-600"><Plus size={20}/></div><span className="text-xs font-bold text-gray-700">Tambah Santri</span></button></div></div>
+  <div className="space-y-3">
+    <Card className="bg-gradient-to-br from-purple-50 to-fuchsia-50 border-purple-200 shadow-sm">
+      <div className="flex items-center gap-3">
+        <div className="bg-purple-100 p-2 rounded-lg text-purple-700"><FileText size={24}/></div>
+        <div>
+          <h3 className="font-bold text-purple-800">Panel Sekretaris</h3>
+          <p className="text-xs text-purple-600">Manajemen Jadwal & Santri</p>
+        </div>
+      </div>
+    </Card>
+    <div className="grid grid-cols-2 gap-3">
+      <button onClick={onAddKegiatan} className="bg-white border border-gray-200 p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-purple-50 hover:border-purple-200 transition-all shadow-sm">
+        <div className="bg-purple-100 p-2 rounded-full text-purple-600"><Plus size={20}/></div>
+        <span className="text-xs font-bold text-gray-700">Tambah Jadwal</span>
+      </button>
+      <button onClick={onAddSantri} className="bg-white border border-gray-200 p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-purple-50 hover:border-purple-200 transition-all shadow-sm">
+        <div className="bg-purple-100 p-2 rounded-full text-purple-600"><Plus size={20}/></div>
+        <span className="text-xs font-bold text-gray-700">Tambah Santri</span>
+      </button>
+    </div>
+  </div>
 );
+
 const DashboardBendahara = ({ onAddTransaksi, onAddZiswaf }) => (
-  <div className="space-y-3"><Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200 shadow-sm"><div className="flex items-center gap-3"><div className="bg-emerald-100 p-2 rounded-lg text-emerald-700"><Wallet size={24}/></div><div><h3 className="font-bold text-emerald-800">Panel Bendahara</h3><p className="text-xs text-emerald-600">Manajemen Kas & Ziswaf</p></div></div></Card><div className="grid grid-cols-2 gap-3"><button onClick={onAddTransaksi} className="bg-white border border-gray-200 p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-emerald-50 hover:border-emerald-200 transition-all shadow-sm"><div className="bg-emerald-100 p-2 rounded-full text-emerald-600"><Plus size={20}/></div><span className="text-xs font-bold text-gray-700">Catat Transaksi</span></button><button onClick={onAddZiswaf} className="bg-white border border-gray-200 p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-emerald-50 hover:border-emerald-200 transition-all shadow-sm"><div className="bg-emerald-100 p-2 rounded-full text-emerald-600"><Plus size={20}/></div><span className="text-xs font-bold text-gray-700">Input ZISWAF</span></button></div></div>
+  <div className="space-y-3">
+    <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200 shadow-sm">
+      <div className="flex items-center gap-3">
+        <div className="bg-emerald-100 p-2 rounded-lg text-emerald-700"><Wallet size={24}/></div>
+        <div>
+          <h3 className="font-bold text-emerald-800">Panel Bendahara</h3>
+          <p className="text-xs text-emerald-600">Manajemen Kas & Ziswaf</p>
+        </div>
+      </div>
+    </Card>
+    <div className="grid grid-cols-2 gap-3">
+      <button onClick={onAddTransaksi} className="bg-white border border-gray-200 p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-emerald-50 hover:border-emerald-200 transition-all shadow-sm">
+        <div className="bg-emerald-100 p-2 rounded-full text-emerald-600"><Plus size={20}/></div>
+        <span className="text-xs font-bold text-gray-700">Catat Transaksi</span>
+      </button>
+      <button onClick={onAddZiswaf} className="bg-white border border-gray-200 p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-emerald-50 hover:border-emerald-200 transition-all shadow-sm">
+        <div className="bg-emerald-100 p-2 rounded-full text-emerald-600"><Plus size={20}/></div>
+        <span className="text-xs font-bold text-gray-700">Input ZISWAF</span>
+      </button>
+    </div>
+  </div>
 );
-
-// --- MAIN VIEWS ---
-
+// --- MAIN HEADER COMPONENT ---
 const Header = ({ profile, config, setView, timeStatus, isOffline, currentUser }) => {
   const [showHijri, setShowHijri] = useState(false);
+  
+  // Interval untuk ganti tanggal Masehi/Hijriah
   useEffect(() => {
     const duration = (config?.durasi_slide_date || 5) * 1000;
     const interval = setInterval(() => setShowHijri(prev => !prev), duration);
     return () => clearInterval(interval);
   }, [config]);
   
-  // FIX KEY: Backend v25.1 normalization for 'Foto_Masjid' -> 'fotomasjid'
+  // FIX KEY: Backend v25.3 normalization for 'Foto_Masjid' -> 'fotomasjid'
+  // Fallback ke 'bg_utama' jika 'fotomasjid' kosong
   const bgImage = profile?.bg_utama || profile?.fotomasjid || "https://images.unsplash.com/photo-1542042956-654e99092d6e?q=80&w=1000";
   
   return (
     <header className={`relative pt-6 pb-20 px-4 rounded-b-[2rem] overflow-hidden shadow-lg transition-all duration-500`}>
-      <div className="absolute inset-0 z-0"><img src={optimizeImage(bgImage, 800)} alt="Masjid" className="w-full h-full object-cover" /><div className={`absolute inset-0 ${['iqomah', 'adzan'].includes(timeStatus.status) ? 'bg-red-900/90' : 'bg-gradient-to-b from-emerald-900/80 to-emerald-800/90'}`}></div></div>
+      {/* Background Layer */}
+      <div className="absolute inset-0 z-0">
+        <img src={optimizeImage(bgImage, 800)} alt="Masjid" className="w-full h-full object-cover" />
+        <div className={`absolute inset-0 ${['iqomah', 'adzan'].includes(timeStatus.status) ? 'bg-red-900/90' : 'bg-gradient-to-b from-emerald-900/80 to-emerald-800/90'}`}></div>
+      </div>
+      
+      {/* Content Layer */}
       <div className="relative z-10 text-white">
         <div className="flex justify-between items-start">
           <div className="flex items-start gap-3">
-             {profile?.logo_url ? <img src={optimizeImage(profile.logo_url, 100)} alt="Logo" className="w-12 h-12 rounded-full bg-white p-1 object-contain shadow-lg" /> : <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur flex items-center justify-center font-bold text-lg border border-white/30">{profile?.nama ? profile.nama.charAt(0) : 'M'}</div>}
-             <div><h1 className="text-xl font-bold leading-tight shadow-sm">{profile?.nama}</h1><p className="text-emerald-100 text-xs flex items-center gap-1 mt-1 opacity-90"><MapPin size={10} /> {profile?.alamat}</p></div>
+             {/* Logic Logo: Cek URL, jika tidak ada pakai Inisial */}
+             {profile?.logo_url || profile?.logourl ? (
+                <img src={optimizeImage(profile.logo_url || profile.logourl, 100)} alt="Logo" className="w-12 h-12 rounded-full bg-white p-1 object-contain shadow-lg" />
+             ) : (
+                <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur flex items-center justify-center font-bold text-lg border border-white/30">
+                  {profile?.nama ? profile.nama.charAt(0) : 'M'}
+                </div>
+             )}
+             
+             <div>
+               <h1 className="text-xl font-bold leading-tight shadow-sm">{profile?.nama}</h1>
+               <p className="text-emerald-100 text-xs flex items-center gap-1 mt-1 opacity-90">
+                 <MapPin size={10} /> {profile?.alamat}
+               </p>
+             </div>
           </div>
+          
+          {/* Badge Status & Menu Siklus */}
           <div className="flex gap-1 flex-wrap justify-end max-w-[120px]">
              {isOffline && <div className="bg-red-500/80 backdrop-blur px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1"><WifiOff size={10}/> OFFLINE</div>}
              {currentUser && <div className="bg-blue-600/90 backdrop-blur px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1"><UserCircle size={10}/> {currentUser.role}</div>}
+             
+             {/* Tombol Pintas Siklus */}
              {config?.siklus === 'RAMADHAN' && <Badge type="warning" onClick={() => setView('ramadhan')}>RAMADHAN</Badge>}
              {config?.siklus === 'IDUL_FITRI' && <Badge type="green" onClick={() => setView('idul_fitri')}>IDUL FITRI</Badge>}
              {config?.siklus === 'QURBAN' && <Badge type="danger" onClick={() => setView('qurban')}>IDUL ADHA</Badge>}
           </div>
         </div>
+        
+        {/* Countdown Sholat */}
         <div className="mt-8 flex items-end justify-between">
-          <div><p className="text-emerald-100 text-[10px] uppercase tracking-wider font-semibold mb-1 opacity-80">{['iqomah', 'adzan'].includes(timeStatus.status) ? 'Menuju Sholat' : `Menuju ${timeStatus.next?.name || 'Sholat'}`}</p><h2 className={`text-4xl font-bold font-mono leading-none ${['iqomah', 'adzan'].includes(timeStatus.status) ? 'animate-pulse text-red-200' : 'text-white'}`}>{timeStatus.text}</h2></div>
-          {!['iqomah', 'adzan'].includes(timeStatus.status) && (<div className="text-right bg-black/20 p-2 rounded-lg backdrop-blur-sm border border-white/10 min-w-[100px]"><p className="text-emerald-100 text-[10px] opacity-80 mb-0.5">{showHijri ? 'Hijriah' : 'Masehi'}</p><p className="font-semibold text-xs leading-tight truncate max-w-[150px]">{showHijri ? getHijriDate() : getMasehiDate()}</p></div>)}
+          <div>
+            <p className="text-emerald-100 text-[10px] uppercase tracking-wider font-semibold mb-1 opacity-80">
+              {['iqomah', 'adzan'].includes(timeStatus.status) ? 'Menuju Sholat' : `Menuju ${timeStatus.next?.name || 'Sholat'}`}
+            </p>
+            <h2 className={`text-4xl font-bold font-mono leading-none ${['iqomah', 'adzan'].includes(timeStatus.status) ? 'animate-pulse text-red-200' : 'text-white'}`}>
+              {timeStatus.text}
+            </h2>
+          </div>
+          
+          {/* Tanggal Masehi/Hijriah Toggle */}
+          {!['iqomah', 'adzan'].includes(timeStatus.status) && (
+            <div className="text-right bg-black/20 p-2 rounded-lg backdrop-blur-sm border border-white/10 min-w-[100px]">
+              <p className="text-emerald-100 text-[10px] opacity-80 mb-0.5">{showHijri ? 'Hijriah' : 'Masehi'}</p>
+              <p className="font-semibold text-xs leading-tight truncate max-w-[150px]">
+                {showHijri ? getHijriDate() : getMasehiDate()}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </header>
   );
 };
 
+// --- VIEW: HOME (BERANDA UTAMA) ---
 const ViewHome = ({ data, setView, timeStatus, currentUser }) => {
   const [showExtras, setShowExtras] = useState(false);
   const [transPage, setTransPage] = useState(1);
   const transPerPage = 3;
+  
+  // Data processing
   const transactions = data?.keuangan?.history || [];
   const totalTransPages = Math.ceil(transactions.length / transPerPage);
   const displayedTrans = transactions.slice((transPage - 1) * transPerPage, transPage * transPerPage);
+  
   const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
-  const jadwalUtama = { Subuh: data?.jadwal?.subuh, Dzuhur: data?.jadwal?.dzuhur, Ashar: data?.jadwal?.ashar, Maghrib: data?.jadwal?.maghrib, Isya: data?.jadwal?.isya };
-  const jadwalExtra = { Imsak: data?.jadwal?.imsak, Syuruq: data?.jadwal?.syuruq, Dhuha: data?.jadwal?.dhuha };
+  
+  const jadwalUtama = { 
+    Subuh: data?.jadwal?.subuh, 
+    Dzuhur: data?.jadwal?.dzuhur, 
+    Ashar: data?.jadwal?.ashar, 
+    Maghrib: data?.jadwal?.maghrib, 
+    Isya: data?.jadwal?.isya 
+  };
+  
+  const jadwalExtra = { 
+    Imsak: data?.jadwal?.imsak, 
+    Syuruq: data?.jadwal?.syuruq, 
+    Dhuha: data?.jadwal?.dhuha 
+  };
+  
   const activePembangunan = data?.pembangunan?.active;
 
+  // Access Control Logic
   const hasAccess = (feature) => {
-    if (!currentUser) return true; 
+    if (!currentUser) return true; // Public access
     const r = currentUser.role.toUpperCase();
     if (r === 'ADMIN' || r === 'SUPERADMIN') return true;
     if (r.includes('BENDAHARA') && ['donasi','keuangan','pembangunan','qurban'].includes(feature)) return true;
@@ -236,72 +503,191 @@ const ViewHome = ({ data, setView, timeStatus, currentUser }) => {
 
   return (
     <div className="pb-32 -mt-12 px-4 relative z-20 space-y-5">
+      {/* 1. JADWAL SHOLAT CARD */}
       <Card className="shadow-lg border-0 ring-1 ring-black/5 overflow-hidden transition-all duration-300">
         <h3 className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-4 text-center">Jadwal Sholat Fardhu</h3>
         <div className="flex justify-between text-center relative z-10 pb-2">
           {Object.entries(jadwalUtama).map(([waktu, jam]) => {
             const isActive = timeStatus.next?.name === waktu && !['iqomah', 'adzan', 'sholat', 'dzikir'].includes(timeStatus.status);
-            return (<div key={waktu} className={`flex flex-col items-center p-2 rounded-lg transition-all ${isActive ? 'bg-emerald-50 -translate-y-1' : ''}`}><span className={`text-[10px] capitalize mb-1 ${isActive ? 'text-emerald-600 font-bold' : 'text-gray-400'}`}>{waktu}</span><span className={`font-bold text-sm ${isActive ? 'text-emerald-600' : 'text-gray-700'}`}>{jam}</span></div>);
+            return (
+              <div key={waktu} className={`flex flex-col items-center p-2 rounded-lg transition-all ${isActive ? 'bg-emerald-50 -translate-y-1' : ''}`}>
+                <span className={`text-[10px] capitalize mb-1 ${isActive ? 'text-emerald-600 font-bold' : 'text-gray-400'}`}>{waktu}</span>
+                <span className={`font-bold text-sm ${isActive ? 'text-emerald-600' : 'text-gray-700'}`}>{jam}</span>
+              </div>
+            );
           })}
         </div>
-        <div onClick={() => setShowExtras(!showExtras)} className="flex items-center justify-center gap-1 py-2 cursor-pointer bg-gray-50 border-t border-gray-100 hover:bg-gray-100 transition-colors"><span className="text-[10px] text-gray-500 font-medium">Waktu Sunnah & Imsakiyah</span>{showExtras ? <ChevronUp size={12} className="text-gray-400"/> : <ChevronDown size={12} className="text-gray-400"/>}</div>
-        <div className={`transition-all duration-500 ease-in-out overflow-hidden ${showExtras ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'}`}><div className="flex justify-center gap-6 py-3 bg-gray-50/50">{Object.entries(jadwalExtra).map(([key, val]) => (<div key={key} className="text-center"><span className="text-[10px] text-gray-400 block mb-0.5">{key}</span><span className="text-xs font-bold text-gray-600">{val}</span></div>))}</div></div>
+        
+        {/* Toggle Extra Times (Imsak/Syuruq) */}
+        <div onClick={() => setShowExtras(!showExtras)} className="flex items-center justify-center gap-1 py-2 cursor-pointer bg-gray-50 border-t border-gray-100 hover:bg-gray-100 transition-colors">
+          <span className="text-[10px] text-gray-500 font-medium">Waktu Sunnah & Imsakiyah</span>
+          {showExtras ? <ChevronUp size={12} className="text-gray-400"/> : <ChevronDown size={12} className="text-gray-400"/>}
+        </div>
+        
+        <div className={`transition-all duration-500 ease-in-out overflow-hidden ${showExtras ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0'}`}>
+          <div className="flex justify-center gap-6 py-3 bg-gray-50/50">
+            {Object.entries(jadwalExtra).map(([key, val]) => (
+              <div key={key} className="text-center">
+                <span className="text-[10px] text-gray-400 block mb-0.5">{key}</span>
+                <span className="text-xs font-bold text-gray-600">{val}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </Card>
 
+      {/* 2. ACTIVITY SLIDER */}
       <ActivitySlider slides={data?.profile?.slide_kegiatan} />
 
-      {/* SIKLUS CARD - MENAMPILKAN MENU SPESIAL JIKA SIKLUS AKTIF */}
-      {data?.config?.siklus === 'RAMADHAN' && <Card onClick={() => setView('ramadhan')} className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-none shadow-lg transform hover:scale-[1.02] transition-transform"><div className="flex justify-between items-center"><div><h3 className="font-bold flex items-center gap-2"><MoonStar size={18}/> Spesial Ramadhan</h3><p className="text-xs text-purple-100 mt-1">Cek Imsakiyah & Jadwal I'tikaf</p></div><ChevronRight className="text-purple-200" size={20}/></div></Card>}
-      {data?.config?.siklus === 'IDUL_FITRI' && <Card onClick={() => setView('idul_fitri')} className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white border-none shadow-lg transform hover:scale-[1.02] transition-transform"><div className="flex justify-between items-center"><div><h3 className="font-bold flex items-center gap-2"><Gift size={18}/> Gema Idul Fitri</h3><p className="text-xs text-emerald-100 mt-1">Info Sholat Ied & Zakat</p></div><ChevronRight className="text-emerald-200" size={20}/></div></Card>}
-      {data?.config?.siklus === 'QURBAN' && hasAccess('qurban') && <Card onClick={() => setView('qurban')} className="bg-red-50 border-red-100"><div className="flex justify-between items-center"><div className="flex items-center gap-3"><div className="bg-red-100 p-2 rounded-full text-red-600"><Beef size={20}/></div><div><h3 className="font-bold text-red-900">Info Qurban</h3><p className="text-xs text-red-700">Cek data shohibul qurban</p></div></div><ChevronRight className="text-red-400" size={20}/></div></Card>}
-
-      {activePembangunan && hasAccess('pembangunan') && (
-        <Card onClick={() => setView('pembangunan')} className="border-l-4 border-l-orange-500 overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
-          <div className="flex justify-between items-center mb-2"><h3 className="font-bold text-gray-800 flex items-center gap-2"><Hammer size={16} className="text-orange-500" />Pembangunan/Renovasi</h3><span className="text-xs text-gray-500">{activePembangunan.lastupdate}</span></div>
-          {activePembangunan.foto_url && (<div className="w-full h-32 rounded-lg overflow-hidden mb-3"><img src={optimizeImage(activePembangunan.foto_url, 600)} className="w-full h-full object-cover" alt="Progres" /></div>)}
-          <p className="text-sm font-semibold text-gray-800 mb-1">{activePembangunan.tahap}</p><p className="text-xs text-gray-600 mb-2">{activePembangunan.keterangan}</p>
-          <div className="w-full bg-gray-200 rounded-full h-2 mb-1 relative overflow-hidden"><div className="bg-orange-500 h-2 rounded-full text-center transition-all duration-1000" style={{ width: `${activePembangunan.progress}%` }}></div></div>
-          <div className="flex justify-between text-xs font-bold"><span className="text-orange-600">{activePembangunan.progress}% Selesai</span><span className="text-blue-600 font-semibold">Lihat Detail & Laporan →</span></div>
+      {/* 3. SIKLUS CARDS (Event Khusus) */}
+      {data?.config?.siklus === 'RAMADHAN' && (
+        <Card onClick={() => setView('ramadhan')} className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-none shadow-lg transform hover:scale-[1.02] transition-transform">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="font-bold flex items-center gap-2"><MoonStar size={18}/> Spesial Ramadhan</h3>
+              <p className="text-xs text-purple-100 mt-1">Cek Imsakiyah & Jadwal I'tikaf</p>
+            </div>
+            <ChevronRight className="text-purple-200" size={20}/>
+          </div>
+        </Card>
+      )}
+      
+      {data?.config?.siklus === 'IDUL_FITRI' && (
+        <Card onClick={() => setView('idul_fitri')} className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white border-none shadow-lg transform hover:scale-[1.02] transition-transform">
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="font-bold flex items-center gap-2"><Gift size={18}/> Gema Idul Fitri</h3>
+              <p className="text-xs text-emerald-100 mt-1">Info Sholat Ied & Zakat</p>
+            </div>
+            <ChevronRight className="text-emerald-200" size={20}/>
+          </div>
+        </Card>
+      )}
+      
+      {data?.config?.siklus === 'QURBAN' && hasAccess('qurban') && (
+        <Card onClick={() => setView('qurban')} className="bg-red-50 border-red-100">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <div className="bg-red-100 p-2 rounded-full text-red-600"><Beef size={20}/></div>
+              <div>
+                <h3 className="font-bold text-red-900">Info Qurban</h3>
+                <p className="text-xs text-red-700">Cek data shohibul qurban</p>
+              </div>
+            </div>
+            <ChevronRight className="text-red-400" size={20}/>
+          </div>
         </Card>
       )}
 
+      {/* 4. PEMBANGUNAN CARD (Jika Mode Pembangunan TRUE) */}
+      {activePembangunan && hasAccess('pembangunan') && (
+        <Card onClick={() => setView('pembangunan')} className="border-l-4 border-l-orange-500 overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-bold text-gray-800 flex items-center gap-2"><Hammer size={16} className="text-orange-500" />Pembangunan/Renovasi</h3>
+            <span className="text-xs text-gray-500">{activePembangunan.lastupdate}</span>
+          </div>
+          {/* Normalize Key Check: fotourl vs foto_url */}
+          {(activePembangunan.fotourl || activePembangunan.foto_url) && (
+            <div className="w-full h-32 rounded-lg overflow-hidden mb-3">
+              <img src={optimizeImage(activePembangunan.fotourl || activePembangunan.foto_url, 600)} className="w-full h-full object-cover" alt="Progres" />
+            </div>
+          )}
+          <p className="text-sm font-semibold text-gray-800 mb-1">{activePembangunan.tahap}</p>
+          <p className="text-xs text-gray-600 mb-2">{activePembangunan.keterangan}</p>
+          <div className="w-full bg-gray-200 rounded-full h-2 mb-1 relative overflow-hidden">
+            <div className="bg-orange-500 h-2 rounded-full text-center transition-all duration-1000" style={{ width: `${activePembangunan.progress}%` }}></div>
+          </div>
+          <div className="flex justify-between text-xs font-bold">
+            <span className="text-orange-600">{activePembangunan.progress}% Selesai</span>
+            <span className="text-blue-600 font-semibold">Lihat Detail & Laporan →</span>
+          </div>
+        </Card>
+      )}
+
+      {/* 5. KEUANGAN & TRANSAKSI */}
       {hasAccess('keuangan') && (
         <div>
           <div className="flex justify-between items-center mb-2 px-1"><h3 className="font-bold text-gray-800">Keuangan Umat</h3></div>
-          <div className="grid grid-cols-2 gap-3 mb-4"><Card className="bg-emerald-50 border-emerald-100"><p className="text-xs text-gray-500 mb-1">Kas Operasional</p><p className="font-bold text-gray-800 text-sm">{fmt(data?.keuangan?.saldo_operasional)}</p></Card><Card className="bg-blue-50 border-blue-100"><p className="text-xs text-gray-500 mb-1">Dana Pembangunan</p><p className="font-bold text-gray-800 text-sm">{fmt(data?.keuangan?.saldo_pembangunan)}</p></Card></div>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <Card className="bg-emerald-50 border-emerald-100">
+              <p className="text-xs text-gray-500 mb-1">Kas Operasional</p>
+              <p className="font-bold text-gray-800 text-sm">{fmt(data?.keuangan?.saldo_operasional)}</p>
+            </Card>
+            <Card className="bg-blue-50 border-blue-100">
+              <p className="text-xs text-gray-500 mb-1">Dana Pembangunan</p>
+              <p className="font-bold text-gray-800 text-sm">{fmt(data?.keuangan?.saldo_pembangunan)}</p>
+            </Card>
+          </div>
           <Card>
             <h4 className="text-xs font-bold text-gray-400 uppercase mb-3">Transaksi Terakhir</h4>
             <div className="space-y-3">
-              {displayedTrans.map((item, idx) => (<div key={idx} className="flex justify-between items-start text-sm border-b border-gray-50 last:border-0 pb-3 last:pb-0"><div className="flex items-start gap-3 flex-1 overflow-hidden"><div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${item.tipe === 'IN' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>{item.tipe === 'IN' ? <Droplets size={14}/> : <Wallet size={14}/>}</div><div className="flex-1 min-w-0"><p className="font-medium text-gray-800 text-xs leading-tight mb-0.5 break-words line-clamp-2">{item.ket}</p><p className="text-[10px] text-gray-400">{item.tgl}</p></div></div><span className={`text-xs font-bold flex-shrink-0 ml-2 ${item.tipe === 'IN' ? 'text-emerald-600' : 'text-rose-600'}`}>{item.tipe === 'IN' ? '+' : '-'}{fmt(item.nominal)}</span></div>))}
+              {displayedTrans.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-start text-sm border-b border-gray-50 last:border-0 pb-3 last:pb-0">
+                  <div className="flex items-start gap-3 flex-1 overflow-hidden">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${item.tipe === 'IN' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                      {item.tipe === 'IN' ? <Droplets size={14}/> : <Wallet size={14}/>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-800 text-xs leading-tight mb-0.5 break-words line-clamp-2">{item.ket}</p>
+                      <p className="text-[10px] text-gray-400">{item.tgl}</p>
+                    </div>
+                  </div>
+                  <span className={`text-xs font-bold flex-shrink-0 ml-2 ${item.tipe === 'IN' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {item.tipe === 'IN' ? '+' : '-'}{fmt(item.nominal)}
+                  </span>
+                </div>
+              ))}
             </div>
+            {/* Pagination Transaksi Home */}
             <Pagination currentPage={transPage} totalPages={totalTransPages} onPageChange={setTransPage} />
           </Card>
         </div>
       )}
 
+      {/* 6. GRID MENU LAYANAN DIGITAL */}
       <div className="pb-8">
         <h3 className="font-bold text-gray-800 mb-3 px-1">Layanan Digital</h3>
         <div className="grid grid-cols-4 gap-3">
-          {hasAccess('tpa') && <div onClick={() => setView('tpa')} className="flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform"><div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm bg-yellow-100 text-yellow-600 border border-yellow-200"><GraduationCap size={20}/></div><span className="text-[10px] text-gray-600 text-center font-medium leading-tight">TPA/TPQ</span></div>}
-          {hasAccess('kegiatan') && <div onClick={() => setView('kegiatan')} className="flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform"><div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm bg-purple-100 text-purple-600 border border-purple-200"><CalendarDays size={20}/></div><span className="text-[10px] text-gray-600 text-center font-medium leading-tight">Agenda</span></div>}
-          {hasAccess('petugas') && <div onClick={() => setView('petugas')} className="flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform"><div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm bg-blue-100 text-blue-600 border border-blue-200"><Users size={20}/></div><span className="text-[10px] text-gray-600 text-center font-medium leading-tight">Petugas</span></div>}
-          {hasAccess('donasi') && <div onClick={() => setView('donasi')} className="flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform"><div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm bg-pink-100 text-pink-600 border border-pink-200"><Heart size={20}/></div><span className="text-[10px] text-gray-600 text-center font-medium leading-tight">ZISWAF</span></div>}
+          {hasAccess('tpa') && (
+            <div onClick={() => setView('tpa')} className="flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm bg-yellow-100 text-yellow-600 border border-yellow-200"><GraduationCap size={20}/></div>
+              <span className="text-[10px] text-gray-600 text-center font-medium leading-tight">TPA/TPQ</span>
+            </div>
+          )}
+          {hasAccess('kegiatan') && (
+            <div onClick={() => setView('kegiatan')} className="flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm bg-purple-100 text-purple-600 border border-purple-200"><CalendarDays size={20}/></div>
+              <span className="text-[10px] text-gray-600 text-center font-medium leading-tight">Agenda</span>
+            </div>
+          )}
+          {hasAccess('petugas') && (
+            <div onClick={() => setView('petugas')} className="flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm bg-blue-100 text-blue-600 border border-blue-200"><Users size={20}/></div>
+              <span className="text-[10px] text-gray-600 text-center font-medium leading-tight">Petugas</span>
+            </div>
+          )}
+          {hasAccess('donasi') && (
+            <div onClick={() => setView('donasi')} className="flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm bg-pink-100 text-pink-600 border border-pink-200"><Heart size={20}/></div>
+              <span className="text-[10px] text-gray-600 text-center font-medium leading-tight">ZISWAF</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-// --- SUB PAGES (FIXED KEYS FOR v25.2 BACKEND) ---
-
+// --- VIEW: TPA/TPQ ---
 const ViewTPA = ({ data, onBack }) => { 
-  // Config WA: Fallback ke nomor admin jika profil kosong
-  const waNum = data?.profile?.wa_admin || data?.config?.waadmin || "";
+  // FIX KEY: Backend v25.3 normalizes "WA_Admin" -> "waadmin"
+  const waNum = data?.profile?.waadmin || data?.config?.waadmin || "";
   const openWA = () => { window.open(`https://wa.me/${waNum}?text=Assalamualaikum%2C%20saya%20ingin%20mendaftar%20TPA`, '_blank'); }; 
   
   const stats = data?.tpa?.stats || { total: 0, ikhwan: 0, akhwat: 0 };
   const list = data?.tpa?.list || [];
   
+  // Pagination State
   const [page, setPage] = useState(1);
   const perPage = 5;
   const totalPages = Math.ceil(list.length / perPage);
@@ -315,7 +701,7 @@ const ViewTPA = ({ data, onBack }) => {
       {/* STATISTIK */}
       <div className="grid grid-cols-3 gap-2 mb-6">
         <div className="bg-yellow-50 p-3 rounded-xl border border-yellow-200 text-center shadow-sm">
-          <p className="text-[10px] text-yellow-700 uppercase font-bold tracking-wider">Total Santri</p>
+          <p className="text-[10px] text-yellow-700 uppercase font-bold tracking-wider">Total</p>
           <p className="font-bold text-yellow-800 text-2xl mt-1">{stats.total}</p>
         </div>
         <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 text-center shadow-sm">
@@ -328,37 +714,26 @@ const ViewTPA = ({ data, onBack }) => {
         </div>
       </div>
 
-      <div className="mb-6 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-        <h3 className="font-bold text-gray-800 mb-3 text-sm">Komposisi Santri</h3>
-        <div className="flex gap-1 h-4 rounded-full overflow-hidden bg-gray-100">
-          <div className="bg-blue-500 h-full transition-all duration-1000" style={{ width: `${stats.total ? (stats.ikhwan / stats.total) * 100 : 0}%` }}></div>
-          <div className="bg-pink-500 h-full transition-all duration-1000" style={{ width: `${stats.total ? (stats.akhwat / stats.total) * 100 : 0}%` }}></div>
-        </div>
-        <div className="flex justify-between text-[10px] mt-2 text-gray-500 font-medium">
-          <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Ikhwan ({stats.total ? Math.round((stats.ikhwan / stats.total) * 100) : 0}%)</span>
-          <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-pink-500"></div> Akhwat ({stats.total ? Math.round((stats.akhwat / stats.total) * 100) : 0}%)</span>
-        </div>
-      </div>
-
       {/* LIST SANTRI */}
       <div className="mb-6">
         <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><List size={16} className="text-emerald-600"/> Daftar Santri Aktif</h3>
         <div className="space-y-2">
           {displayList.length > 0 ? displayList.map((item, idx) => {
-            // FIX KEY: Backend v25.2 normalizes "Jenis_Kelamin" to "jeniskelamin"
+            // FIX KEY: Backend v25.3 normalizes "Jenis_Kelamin" to "jeniskelamin"
             const jk = item.jeniskelamin || item.jenis_kelamin || "-";
             const nama = item.nama || "Tanpa Nama";
             const initial = nama.charAt(0);
+            const isLaki = String(jk).toUpperCase().startsWith('L');
             
             return (
               <Card key={idx} className="flex justify-between items-center py-3 px-4 hover:bg-gray-50 transition-colors border-gray-100">
                 <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm ${String(jk).toUpperCase().startsWith('L') ? 'bg-blue-500' : 'bg-pink-500'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm ${isLaki ? 'bg-blue-500' : 'bg-pink-500'}`}>
                     {initial}
                   </div>
                   <div>
                     <p className="font-bold text-sm text-gray-800 leading-tight">{nama}</p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">{String(jk).toUpperCase().startsWith('L') ? 'Laki-laki' : 'Perempuan'}</p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">{isLaki ? 'Laki-laki' : 'Perempuan'}</p>
                   </div>
                 </div>
                 <Badge type="success">Aktif</Badge>
@@ -370,6 +745,8 @@ const ViewTPA = ({ data, onBack }) => {
             </div>
           )}
         </div>
+        
+        {/* Pagination TPA */}
         <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
       </div>
 
@@ -379,7 +756,7 @@ const ViewTPA = ({ data, onBack }) => {
     </div>
   ); 
 };
-
+// --- VIEW: DONASI (ZISWAF) ---
 const ViewDonasi = ({ data, onBack }) => {
   const [activeTab, setActiveTab] = useState('transfer');
   const [customAmount, setCustomAmount] = useState(''); 
@@ -394,7 +771,8 @@ const ViewDonasi = ({ data, onBack }) => {
     }
   };
   
-  const waNum = data?.profile?.wa_admin || data?.config?.waadmin || "";
+  // FIX KEY: waadmin
+  const waNum = data?.profile?.waadmin || data?.config?.waadmin || "";
   const openWA = (amount) => { 
     const val = amount || customAmount;
     const msg = val ? `Konfirmasi donasi sebesar ${val}` : `Konfirmasi donasi`; 
@@ -427,7 +805,7 @@ const ViewDonasi = ({ data, onBack }) => {
         <div className="space-y-4 animate-fade-in">
           <Card className="text-center border-emerald-200 bg-emerald-50">
             <h3 className="font-bold text-emerald-800 mb-2 text-sm uppercase tracking-wide">Scan QRIS</h3>
-            {/* FIX KEY: Backend v25.2 normalizes 'qris_url' -> 'qrisurl' */}
+            {/* FIX KEY: Backend v25.3 normalizes 'qris_url' -> 'qrisurl' */}
             {data?.profile?.qrisurl || data?.profile?.qris_url ? (
               <img src={optimizeImage(data.profile.qrisurl || data.profile.qris_url, 400)} alt="QRIS" className="w-48 h-48 mx-auto object-cover rounded-lg mix-blend-multiply border border-white shadow-sm" />
             ) : (
@@ -502,67 +880,208 @@ const ViewDonasi = ({ data, onBack }) => {
   );
 };
 
+// --- VIEW: PETUGAS (FULL FEATURES: 2 TABS + PAGINATION + ICON) ---
 const ViewPetugas = ({ data, onBack }) => {
-  const items = data?.penceramah || [];
+  const [activeTab, setActiveTab] = useState('tetap'); // 'tetap' or 'jadwal'
+  const [pageTetap, setPageTetap] = useState(1);
+  const perPage = 5;
+
+  const penceramah = data?.penceramah || [];
+  const kegiatan = data?.kegiatan || [];
+
+  // 1. Logic Filter Petugas Tetap (Struktural)
+  const petugasTetap = penceramah.filter(p => {
+    const role = String(p.spesialisasi || "").toLowerCase();
+    // Tampilkan jika spesialisasi mengandung kata kunci jabatan atau ada isinya
+    return role.includes('imam') || role.includes('muadzin') || role.includes('marbot') || role.includes('ketua') || role.includes('takmir') || role.length > 0;
+  });
+  
+  // 2. Logic Filter Jadwal Khotib dari Kegiatan
+  const jadwalKhotib = kegiatan.filter(k => {
+    const title = String(k.judul || "").toLowerCase();
+    return title.includes('jumat') || title.includes('jum\'at') || title.includes('khotib') || title.includes('ied') || title.includes('tarawih');
+  }).sort((a, b) => {
+    // Sort tanggal
+    const dateA = a.waktu ? new Date(a.waktu.split(' ')[0]) : new Date();
+    const dateB = b.waktu ? new Date(b.waktu.split(' ')[0]) : new Date();
+    return dateA - dateB;
+  });
+
+  // Pagination for Tetap
+  const totalPageTetap = Math.ceil(petugasTetap.length / perPage);
+  const displayTetap = petugasTetap.slice((pageTetap - 1) * perPage, pageTetap * perPage);
+
+  const formatTglIndo = (tglStr) => {
+    try {
+      if(!tglStr) return "";
+      const date = new Date(tglStr);
+      if(isNaN(date)) return tglStr; 
+      return new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
+    } catch(e) { return tglStr; }
+  };
+
   return (
     <div className="pb-24 pt-4 px-4 min-h-screen bg-gray-50 animate-fade-in">
       <button onClick={onBack} className="mb-4 flex items-center text-sm font-semibold text-gray-600 hover:text-emerald-600 transition-colors"><ArrowLeft size={16} className="mr-1"/> Kembali</button>
-      <div className="text-center mb-6"><div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-blue-600 shadow-sm"><Users size={32}/></div><h2 className="text-xl font-bold text-gray-800">Petugas Masjid</h2><p className="text-sm text-gray-500">Imam, Khotib & Pemateri</p></div>
-      <div className="space-y-3">
-        {items.length > 0 ? (
-          items.map((p, idx) => (
-            <Card key={idx} className="flex items-center gap-4 hover:shadow-md transition-shadow duration-300">
-              <div className="bg-gray-100 w-12 h-12 rounded-full flex items-center justify-center text-gray-500 shrink-0"><UserCircle size={32}/></div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-gray-800 truncate">{p.nama}</h3>
-                <div className="flex justify-between items-center mt-1">
-                   <Badge type="blue">{p.spesialisasi || "Pemateri"}</Badge>
-                   {/* FIX KEY: Backend v25.2 normalizes "No_WA" -> "nowa" */}
-                   {(p.nowa || p.no_wa) && <a href={`https://wa.me/${p.nowa || p.no_wa}`} target="_blank" className="text-emerald-600 text-xs flex items-center gap-1 hover:underline font-medium"><MessageCircle size={12}/> Hubungi</a>}
-                </div>
-              </div>
-            </Card>
-          ))
-        ) : (<p className="text-center text-gray-400 text-sm py-10 bg-white rounded-xl border border-dashed">Belum ada data petugas.</p>)}
+      
+      <div className="text-center mb-6">
+        <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 text-blue-600 shadow-sm"><Users size={32}/></div>
+        <h2 className="text-xl font-bold text-gray-800">Petugas Masjid</h2>
+        <p className="text-sm text-gray-500">Struktur & Jadwal Khotib</p>
       </div>
+
+      {/* TAB NAVIGATION */}
+      <div className="flex p-1 bg-gray-200 rounded-xl mb-6 shadow-inner">
+        <button onClick={() => setActiveTab('tetap')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === 'tetap' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>Struktural</button>
+        <button onClick={() => setActiveTab('jadwal')} className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === 'jadwal' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>Jadwal Khotib</button>
+      </div>
+
+      {/* CONTENT: PETUGAS TETAP */}
+      {activeTab === 'tetap' && (
+        <div className="space-y-3 animate-fade-in">
+          {displayTetap.length > 0 ? (
+            displayTetap.map((p, idx) => {
+              // FIX KEY: Backend v25.3 normalizes "Foto" -> "foto", "Jenis_Kelamin" -> "jeniskelamin"
+              const foto = p.foto || p.fotourl || "";
+              const jk = p.jeniskelamin || p.jenis_kelamin || "L";
+              const isLaki = String(jk).toUpperCase().startsWith('L');
+              const initial = p.nama ? p.nama.charAt(0) : '?';
+
+              return (
+                <Card key={idx} className="flex items-center gap-4 hover:shadow-md transition-shadow duration-300 border-l-4 border-l-blue-500">
+                  {foto.length > 5 ? (
+                    <img src={optimizeImage(foto, 100)} alt={p.nama} className="w-12 h-12 rounded-full object-cover border border-gray-200" />
+                  ) : (
+                    // Fallback Icon Gender
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white shrink-0 font-bold ${isLaki ? 'bg-blue-500' : 'bg-pink-500'}`}>
+                      {isLaki ? <User size={20} /> : <User size={20} />} 
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-800 truncate">{p.nama}</h3>
+                    <div className="flex justify-between items-center mt-1">
+                       <Badge type="blue">{p.spesialisasi || "Anggota"}</Badge>
+                       {/* FIX KEY: nowa */}
+                       {(p.nowa || p.no_wa) && <a href={`https://wa.me/${p.nowa || p.no_wa}`} target="_blank" className="text-emerald-600 text-xs flex items-center gap-1 hover:underline font-medium"><MessageCircle size={12}/> Hubungi</a>}
+                    </div>
+                  </div>
+                </Card>
+              );
+            })
+          ) : (
+            <div className="text-center py-10 bg-white rounded-xl border border-dashed">
+              <p className="text-gray-400 text-sm">Belum ada data Pengurus.</p>
+            </div>
+          )}
+          {/* Pagination Struktural */}
+          <Pagination currentPage={pageTetap} totalPages={totalPageTetap} onPageChange={setPageTetap} />
+        </div>
+      )}
+
+      {/* CONTENT: JADWAL KHOTIB */}
+      {activeTab === 'jadwal' && (
+        <div className="space-y-3 animate-fade-in">
+          {jadwalKhotib.length > 0 ? (
+            jadwalKhotib.map((k, idx) => {
+                // FIX KEY: ustadzpic
+                const ustadz = k.ustadz || k.ustadzpic || "Belum Ditentukan";
+                const waktuRaw = k.waktu || "";
+                const tglOnly = waktuRaw.split(' ')[0]; 
+                
+                return (
+                  <Card key={idx} className="flex gap-3 hover:shadow-md transition-shadow duration-300 border border-gray-100">
+                    <div className="flex flex-col items-center justify-center bg-emerald-50 w-16 h-16 rounded-lg text-emerald-700 shrink-0 border border-emerald-100">
+                      <span className="text-[10px] font-bold uppercase tracking-wider">TGL</span>
+                      <span className="text-xl font-bold">{tglOnly.split('-')[2] || tglOnly.substring(0,2) || "??"}</span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between">
+                        <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-medium uppercase tracking-wide">{k.judul}</span>
+                      </div>
+                      <h3 className="font-bold text-gray-800 mt-1">{ustadz}</h3>
+                      <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                        <Calendar size={12}/> {formatTglIndo(tglOnly)}
+                      </p>
+                    </div>
+                  </Card>
+                );
+            })
+          ) : (
+            <div className="text-center py-10 bg-white rounded-xl border border-dashed">
+              <p className="text-gray-400 text-sm">Belum ada jadwal Khotib.</p>
+              <p className="text-[10px] text-gray-400 mt-1">Tambahkan di menu 'Agenda' dengan judul mengandung 'Jumat' atau 'Khotib'.</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
 
+// --- VIEW: KEGIATAN (UPDATED: PAGINATION 4 + LABEL DINAMIS) ---
 const ViewKegiatan = ({ data, onBack }) => {
   const items = data?.kegiatan || [];
+  const [page, setPage] = useState(1);
+  const perPage = 4;
+  const totalPages = Math.ceil(items.length / perPage);
+  const displayItems = items.slice((page - 1) * perPage, page * perPage);
+
   return (
     <div className="pb-24 pt-4 px-4 min-h-screen bg-gray-50 animate-fade-in">
       <button onClick={onBack} className="mb-4 flex text-sm text-gray-600 hover:text-emerald-600 transition-colors"><ArrowLeft size={16} className="mr-1"/> Kembali</button>
       <div className="flex items-center justify-between mb-4"><h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><CalendarDays className="text-purple-600"/> Agenda Kegiatan</h2></div>
+      
       <div className="space-y-3">
-        {items.length > 0 ? items.map((item, idx) => {
-          // FIX KEY: Backend v25.2 normalizes "Ustadz/Pic" -> "ustadzpic"
+        {displayItems.length > 0 ? displayItems.map((item, idx) => {
+          // FIX KEY: Backend Normalization
           const pic = item.ustadz || item.ustadzpic || "Panitia";
-          const tgl = item.waktu ? item.waktu.split(' ')[0].substring(0,2) : '--';
           
+          // Logic Tgl Icon: Cek format YYYY-MM-DD
+          const rawWaktu = item.waktu || "";
+          const isDate = rawWaktu.match(/^\d{4}-\d{2}-\d{2}/);
+          // Ambil tanggal (DD) jika format benar, atau "##" jika teks bebas
+          const tglIcon = isDate ? rawWaktu.split('-')[2].substring(0,2) : "##";
+          
+          // Logic Label Dinamis
+          const judulLower = String(item.judul).toLowerCase();
+          let label = "AGENDA";
+          if (judulLower.includes('jumat')) label = "SHOLAT JUMAT";
+          else if (judulLower.includes('kajian')) label = "KAJIAN RUTIN";
+          else if (judulLower.includes('rapat')) label = "RAPAT DKM";
+          else if (judulLower.includes('phbi')) label = "PHBI";
+
           return (
             <Card key={idx} className="flex gap-4 hover:shadow-md transition-all duration-300 border-l-4 border-l-purple-500">
               <div className="flex flex-col items-center justify-center bg-purple-50 w-14 h-14 rounded-lg text-purple-700 shrink-0 border border-purple-100">
                  <span className="text-[10px] font-bold uppercase tracking-wider">TGL</span>
-                 <span className="text-xl font-bold">{tgl}</span>
+                 <span className="text-xl font-bold">{tglIcon}</span>
               </div>
               <div className="flex-1">
                  <div className="flex justify-between items-start">
-                   <Badge type="purple">Kajian</Badge>
+                   <Badge type="purple">{label}</Badge>
                  </div>
                  <h3 className="font-bold text-gray-800 mt-1 text-sm leading-snug">{item.judul}</h3>
-                 <p className="text-xs text-gray-600 mt-1 flex items-center gap-1 font-medium"><UserCircle size={12} className="text-purple-400"/> {pic}</p>
-                 <div className="flex items-center gap-1 mt-2 text-[10px] text-gray-500 bg-gray-50 px-2 py-1 rounded w-fit"><Clock size={10}/> {item.waktu}</div>
+                 <p className="text-xs text-gray-600 mt-1 flex items-center gap-1 font-medium">
+                   <UserCircle size={12} className="text-purple-400"/> {pic}
+                 </p>
+                 <div className="flex items-center gap-1 mt-2 text-[10px] text-gray-500 bg-gray-50 px-2 py-1 rounded w-fit">
+                   <Clock size={10}/> {item.waktu}
+                 </div>
               </div>
             </Card>
           );
-        }) : <p className="text-center text-sm text-gray-400 py-10 bg-white rounded-xl border border-dashed">Tidak ada agenda aktif.</p>}
+        }) : (
+          <div className="text-center text-sm text-gray-400 py-10 bg-white rounded-xl border border-dashed">
+            Tidak ada agenda aktif.
+          </div>
+        )}
       </div>
+      <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
     </div>
   );
 };
 
+// --- VIEW: PEMBANGUNAN ---
 const ViewPembangunan = ({ data, onBack }) => {
   const [activeTab, setActiveTab] = useState('laporan'); 
   const listPembangunan = data?.pembangunan?.list || [];
@@ -585,7 +1104,7 @@ const ViewPembangunan = ({ data, onBack }) => {
   // Construction Slider
   const ConstructionSlider = ({ stages }) => {
     const [idx, setIdx] = useState(0);
-    // FIX KEY: Backend v25.2 normalizes "Foto_URL" -> "fotourl"
+    // FIX KEY: Backend v25.3 normalizes "Foto_URL" -> "fotourl"
     const validStages = stages.filter(s => (s.fotourl || s.foto_url) && (s.fotourl || s.foto_url).length > 5);
     
     return (
@@ -638,7 +1157,6 @@ const ViewPembangunan = ({ data, onBack }) => {
           <div className="space-y-3">
             {listPembangunan.map((item, idx) => {
               const isOpen = expandedIndex === idx;
-              // FIX KEY: Backend v25.2 normalization
               const fotoUrl = item.fotourl || item.foto_url;
               const lastUpdate = item.lastupdate || item.tanggal || "-";
               
@@ -724,9 +1242,9 @@ const ViewPembangunan = ({ data, onBack }) => {
   ); 
 };
 
-// --- RESTORED RAMADHAN VIEW ---
+// --- SPECIAL VIEWS (RAMADHAN, IED, QURBAN) ---
+
 const ViewRamadhan = ({ data, onBack }) => {
-  // Logic Filter Agenda Ramadhan (Safe Key Access)
   const agendaRamadhan = data?.kegiatan?.filter(k => {
     const judul = String(k.judul || "").toLowerCase();
     return judul.includes('tarawih') || judul.includes('buka') || judul.includes('sahur') || judul.includes('ramadhan');
@@ -759,7 +1277,7 @@ const ViewRamadhan = ({ data, onBack }) => {
          <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2 text-sm uppercase tracking-wide"><CalendarDays size={16} className="text-purple-600"/> Agenda Ramadhan</h3>
          <div className="space-y-3">
            {agendaRamadhan.length > 0 ? agendaRamadhan.map((item, idx) => {
-             // FIX KEY: Backend v25.2 normalization "Ustadz/Pic" -> "ustadzpic"
+             // FIX KEY: Backend v25.3 normalization "Ustadz/Pic" -> "ustadzpic"
              const pic = item.ustadz || item.ustadzpic || "Panitia";
              const tgl = item.waktu ? item.waktu.split(' ')[0] : '';
              return (
@@ -802,9 +1320,9 @@ const ViewIdulFitri = ({ data, onBack }) => (
 );
 
 const ViewQurban = ({ data, onBack }) => { 
-  const waNum = data?.profile?.wa_admin || data?.config?.waadmin || "";
+  // FIX KEY: waadmin
+  const waNum = data?.profile?.waadmin || data?.config?.waadmin || "";
   const openWA = () => { window.open(`https://wa.me/${waNum}?text=${encodeURIComponent(`Assalamualaikum, daftar qurban`)}`, '_blank'); }; 
-  
   return (
     <div className="pb-24 pt-4 px-4 min-h-screen bg-gray-50 animate-fade-in">
       <button onClick={onBack} className="mb-4 flex text-sm text-gray-600 hover:text-red-600 transition-colors"><ArrowLeft size={16} className="mr-1"/> Kembali</button>
@@ -827,8 +1345,7 @@ const ViewQurban = ({ data, onBack }) => {
         <h3 className="font-bold text-gray-800 mb-4 text-sm uppercase tracking-wide">Daftar Shohibul Qurban</h3>
         <div className="space-y-4">
           {data?.qurban?.hewan?.map((item, idx) => {
-            // FIX KEY: Backend v25.2 normalization
-            // "Nama_Shohib" -> "namashohib", "Jenis_Hewan" -> "jenishewan"
+            // FIX KEY: Backend v25.3 normalization
             const nama = item.namashohib || item.nama_shohib || "Hamba Allah";
             const hewan = item.jenishewan || item.jenis_hewan || "-";
             const status = item.statusbayar || item.status_bayar || "BELUM";
@@ -1048,8 +1565,8 @@ const ViewAdmin = ({ data, onBack, setView, onLogin, currentUser, masjidId, send
     <div className="pb-24 pt-4 px-4 min-h-screen bg-gray-50 animate-fade-in">
       <div className="flex justify-between items-center mb-6">
          <div>
-           <h2 className="text-xl font-bold text-gray-800">Dashboard {r === 'ADMIN' ? 'Ketua' : (r === 'SUPERADMIN' ? 'Vendor' : (r.includes('BENDAHARA') ? 'Keuangan' : 'Sekretariat'))}</h2>
-           <p className="text-xs text-gray-500">Halo, {currentUser.nama}</p>
+           <h2 className="text-xl font-bold text-gray-800">Assalamualaikum, {currentUser.nama}</h2>
+           <p className="text-xs text-gray-500">Dashboard {r === 'ADMIN' ? 'Ketua' : (r === 'SUPERADMIN' ? 'Vendor' : (r.includes('BENDAHARA') ? 'Keuangan' : 'Sekretariat'))}</p>
          </div>
          <button onClick={() => onLogin(null)} className="text-red-500 bg-red-50 p-2 rounded-full hover:bg-red-100 transition shadow-sm"><LogOut size={20}/></button>
       </div>
@@ -1069,7 +1586,7 @@ const ViewAdmin = ({ data, onBack, setView, onLogin, currentUser, masjidId, send
         </div>
       )}
 
-      {/* MODALS */}
+      {/* MODALS WITH FIX (Z-INDEX 100 + PADDING BOTTOM) */}
       <ModalInput isOpen={showModalSantri} onClose={() => setShowModalSantri(false)} title="Tambah Santri TPA" onSubmit={(e) => { e.preventDefault(); submitData("add_santri", formData); }}>
          <input type="text" placeholder="Nama Santri" className="w-full border p-3 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all" onChange={e => handleInput('nama', e.target.value)} required />
          <select className="w-full border p-3 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all" onChange={e => handleInput('jenis_kelamin', e.target.value)}><option value="L">Laki-laki</option><option value="P">Perempuan</option></select>
@@ -1096,7 +1613,7 @@ const ViewAdmin = ({ data, onBack, setView, onLogin, currentUser, masjidId, send
   );
 };
 
-// --- MAIN APP ---
+// --- MAIN APP COMPONENT ---
 export default function App() {
   const [view, setView] = useState('home'); 
   const [data, setData] = useState(null);
@@ -1164,6 +1681,7 @@ export default function App() {
     return () => clearInterval(tick);
   }, [data]);
 
+  // --- TAMPILAN ERROR YANG LEBIH BAIK (RESTORED) ---
   if (loading) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-emerald-600">
       <RefreshCw className="animate-spin mb-4" size={48}/>

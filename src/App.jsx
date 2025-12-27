@@ -79,13 +79,14 @@ const optimizeImage = (url, width = 800) => {
 };
 
 // FIX: ALGORITMA HIJRIAH MANUAL (HARDCODED ARITHMETIC)
-// Menghindari bug pada browser HP Android/iOS yang tidak support Intl Islamic
+// Perbaikan: Menggunakan 'let' untuk day, month, year agar bisa di-reassign
 const getHijriDate = () => {
   try {
     const today = new Date();
-    const day = today.getDate();
-    const month = today.getMonth();
-    const year = today.getFullYear();
+    // FIX: Changed const to let to allow reassignment in algorithm below
+    let day = today.getDate();
+    let month = today.getMonth();
+    let year = today.getFullYear();
     
     let m = month + 1;
     let y = year;
@@ -236,7 +237,7 @@ const Badge = ({ children, type = "info", onClick }) => {
   );
 };
 
-// COMPONENT: Pagination (Re-added)
+// COMPONENT: Pagination
 const Pagination = ({ currentPage, totalPages, onPageChange }) => {
   if (totalPages <= 1) return null;
   return (
@@ -290,6 +291,7 @@ const ModalInput = ({ isOpen, onClose, title, onSubmit, children }) => {
 
 const ActivitySlider = ({ slides = [] }) => {
   const validSlides = Array.isArray(slides) ? slides.filter(item => (typeof item === 'string' ? item : item?.url)) : [];
+  // Default slide if empty
   const displaySlides = validSlides.length > 0 ? validSlides : [{ url: "https://images.unsplash.com/photo-1564769629178-580d6be2f6b9?q=80&w=1000", caption: "Selamat Datang" }];
   
   return (
